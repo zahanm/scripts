@@ -1,6 +1,7 @@
 {
   "extends": "@tsconfig/node12/tsconfig.json",
   "compilerOptions": {
+    "esModuleInterop": false,
     "outDir": "out"
   },
   "exclude": ["node_modules", "**/node_modules/*"]
