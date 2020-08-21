@@ -6,7 +6,10 @@ import { pathExists } from "./utils";
 
 export async function copyAndroidRes(opts: Record<string, any>, dest: string) {
   if (!(await pathExists(dest))) {
-    throw new Error(`Must provide valid folder: ${dest}`);
+    throw new Error(`Must provide valid folder: ${dest}.`);
+  }
+  if (!path.isAbsolute(dest)) {
+    throw new Error(`Must provide absolute path to ${dest}.`);
   }
   const rl = readline.createInterface({ input: process.stdin });
   for await (const filename of rl) {
