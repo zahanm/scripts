@@ -1,4 +1,4 @@
-import { execSync, spawn } from "child_process";
+import { ChildProcess, execSync, spawn } from "child_process";
 import { mkdir, open, readFile, writeFile } from "fs/promises";
 import * as path from "path";
 
@@ -8,18 +8,34 @@ export async function updateFavaServer(
   opts: Record<string, any>,
   repo: string
 ) {
+  await checkArgs(repo);
+  const userId = execSync("id --user").toString().trim();
+  const pidfile = `/tmp/fava-server-${userId}/server.pid`;
+  const dataDir = path.dirname(pidfile);
+  await maybeKillOldServer(pidfile);
+  console.error(
+    `Running: pipenv run fava personal.beancount --port 8080 --host=0.0.0.0`
+  );
+  await maybeMkdir(dataDir);
+  const fava = await spawnDetachedServer(dataDir, repo);
+  console.log(`PID: ${fava.pid}`);
+  console.error(`Writing to: ${pidfile}`);
+  await writeFile(pidfile, fava.pid.toString());
+}
+
+async function checkArgs(repo: string) {
   if (!(await pathExists(repo))) {
     throw new Error(`The folder does not exist: ${repo}.`);
   }
   if (!path.isAbsolute(repo)) {
     throw new Error(`Must provide absolute path for repo: ${repo}.`);
   }
-  const userId = execSync("id --user").toString().trim();
-  const pidile = `/tmp/fava-server-${userId}/server.pid`;
-  const dataDir = path.dirname(pidile);
+}
+
+async function maybeKillOldServer(pidfile: string) {
   let oldPid: number | null = null;
   try {
-    oldPid = parseInt((await readFile(pidile)).toString());
+    oldPid = parseInt((await readFile(pidfile)).toString());
   } catch (e) {
     throw e;
   }
@@ -33,15 +49,21 @@ export async function updateFavaServer(
       console.error("Old server died.");
     }
   }
-  console.error(
-    `Running: pipenv run fava personal.beancount --port 8080 --host=0.0.0.0`
-  );
+}
+
+async function maybeMkdir(dir: string) {
   try {
-    await mkdir(dataDir);
+    await mkdir(dir);
   } catch (e) {
-    // Handle the case where the directory already exists
+    // Ignore the case where the directory already exists
     if (e.code != "EEXIST") throw e;
   }
+}
+
+async function spawnDetachedServer(
+  dataDir: string,
+  repo: string
+): Promise<ChildProcess> {
   const out = await open(path.join(dataDir, "out.log"), "a");
   const err = await open(path.join(dataDir, "err.log"), "a");
   const fava = spawn(
@@ -62,7 +84,5 @@ export async function updateFavaServer(
     }
   );
   fava.unref();
-  console.log(`PID: ${fava.pid}`);
-  console.error(`Writing to: ${pidile}`);
-  await writeFile(pidile, fava.pid.toString());
+  return fava;
 }
