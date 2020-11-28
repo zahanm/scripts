@@ -15,7 +15,7 @@ export async function updateFavaServer(
   repo: string
 ) {
   await checkArgs(repo);
-  if (!(await checkForGitUpdates(repo))) {
+  if (!checkForGitUpdates(repo)) {
     console.error(`Quitting. No updates to ${repo}`);
     return;
   }
@@ -23,9 +23,7 @@ export async function updateFavaServer(
   const pidfile = `/tmp/fava-server-${userId}/server.pid`;
   const dataDir = path.dirname(pidfile);
   await maybeKillOldServer(pidfile);
-  console.error(
-    `Running: pipenv run fava personal.beancount --port 8080 --host=0.0.0.0`
-  );
+  updateGitRepo(repo);
   await maybeMkdir(dataDir);
   const fava = await spawnDetachedServer(dataDir, repo);
   console.log(`PID: ${fava.pid}`);
@@ -45,7 +43,7 @@ async function checkArgs(repo: string) {
 /**
  * @returns whether there are updates to this repo
  */
-async function checkForGitUpdates(repo: string): Promise<boolean> {
+function checkForGitUpdates(repo: string): boolean {
   console.error("git fetch");
   // need to run this in the pipenv since the dropbox remote helper is installed there
   spawnSync("pipenv", ["run", "git", "fetch"], {
@@ -63,6 +61,11 @@ async function checkForGitUpdates(repo: string): Promise<boolean> {
     .trim();
   console.error(`local: ${localHEAD} remote: ${remoteHEAD}`);
   return localHEAD != remoteHEAD;
+}
+
+function updateGitRepo(repo: string) {
+  console.error("git merge origin/master --ff-only");
+  spawnSync("git", ["merge", "origin/master"], { cwd: repo });
 }
 
 async function maybeKillOldServer(pidfile: string) {
@@ -99,6 +102,9 @@ async function spawnDetachedServer(
 ): Promise<ChildProcess> {
   const out = await open(path.join(dataDir, "out.log"), "a");
   const err = await open(path.join(dataDir, "err.log"), "a");
+  console.error(
+    `Running: pipenv run fava personal.beancount --port 8080 --host=0.0.0.0`
+  );
   const fava = spawn(
     "pipenv",
     [
