@@ -1,6 +1,7 @@
 import { program } from "commander";
 import { helloWorld } from "./lib/helloWorld";
 import { copyAndroidRes } from "./lib/copyAndroidRes";
+import { updateFavaServer } from "./lib/updateFavaServer";
 
 async function main() {
   program
@@ -21,6 +22,15 @@ async function main() {
     )
     .action(async function (dest: string) {
       await copyAndroidRes(program.opts(), dest);
+    });
+
+  program
+    .command("update-fava-server <repo>")
+    .description(
+      "Checks for updates to the beancount repo, and relaunches the fava server."
+    )
+    .action(async function (repo: string) {
+      await updateFavaServer(program.opts(), repo);
     });
 
   await program.parseAsync();
