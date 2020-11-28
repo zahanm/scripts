@@ -1,10 +1,4 @@
-import {
-  ChildProcess,
-  execFileSync,
-  execSync,
-  spawn,
-  spawnSync,
-} from "child_process";
+import { execFileSync, execSync, spawn, spawnSync } from "child_process";
 import { mkdir, open, readFile, writeFile } from "fs/promises";
 import * as path from "path";
 
@@ -25,10 +19,7 @@ export async function updateFavaServer(
   await maybeKillOldServer(pidfile);
   updateGitRepo(repo);
   await maybeMkdir(dataDir);
-  const fava = await spawnDetachedServer(dataDir, repo);
-  console.log(`PID: ${fava.pid}`);
-  console.error(`Writing to: ${pidfile}`);
-  await writeFile(pidfile, fava.pid.toString());
+  await spawnDetachedServer(dataDir, repo, pidfile);
 }
 
 async function checkArgs(repo: string) {
@@ -98,8 +89,9 @@ async function maybeMkdir(dir: string) {
 
 async function spawnDetachedServer(
   dataDir: string,
-  repo: string
-): Promise<ChildProcess> {
+  repo: string,
+  pidfile: string
+) {
   const out = await open(path.join(dataDir, "out.log"), "a");
   const err = await open(path.join(dataDir, "err.log"), "a");
   console.error(
@@ -123,5 +115,7 @@ async function spawnDetachedServer(
     }
   );
   fava.unref();
-  return fava;
+  console.log(`PID: ${fava.pid}`);
+  console.error(`Writing to: ${pidfile}`);
+  await writeFile(pidfile, fava.pid.toString());
 }
