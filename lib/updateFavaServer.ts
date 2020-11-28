@@ -85,21 +85,11 @@ async function maybeKillOldServer(pidfile: string) {
 async function spawnDetachedServer(repo: string, pidfile: string) {
   const out = await open(path.join(LOG_DIR, "out.log"), "a");
   const err = await open(path.join(LOG_DIR, "err.log"), "a");
-  console.error(
-    "Running: pipenv run fava personal.beancount --port 8080 --host 0.0.0.0"
-  );
+  console.error("Running: pipenv run fava personal.beancount --port 8080");
   console.error(`Output to ${path.join(LOG_DIR, "{out,err}.log")}`);
   const fava = spawn(
     "pipenv",
-    [
-      "run",
-      "fava",
-      "personal.beancount",
-      "--port",
-      "8080",
-      "--host",
-      "0.0.0.0",
-    ],
+    ["run", "fava", "personal.beancount", "--port", "8080"],
     {
       cwd: repo,
       detached: true,
