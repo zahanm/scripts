@@ -1,4 +1,10 @@
-import { ChildProcess, execSync, spawn } from "child_process";
+import {
+  ChildProcess,
+  execFileSync,
+  execSync,
+  spawn,
+  spawnSync,
+} from "child_process";
 import { mkdir, open, readFile, writeFile } from "fs/promises";
 import * as path from "path";
 
@@ -9,6 +15,10 @@ export async function updateFavaServer(
   repo: string
 ) {
   await checkArgs(repo);
+  if (!(await checkForGitUpdates(repo))) {
+    console.error(`Quitting. No updates to ${repo}`);
+    return;
+  }
   const userId = execSync("id --user").toString().trim();
   const pidfile = `/tmp/fava-server-${userId}/server.pid`;
   const dataDir = path.dirname(pidfile);
@@ -30,6 +40,29 @@ async function checkArgs(repo: string) {
   if (!path.isAbsolute(repo)) {
     throw new Error(`Must provide absolute path for repo: ${repo}.`);
   }
+}
+
+/**
+ * @returns whether there are updates to this repo
+ */
+async function checkForGitUpdates(repo: string): Promise<boolean> {
+  console.error("git fetch");
+  // need to run this in the pipenv since the dropbox remote helper is installed there
+  spawnSync("pipenv", ["run", "git", "fetch"], {
+    cwd: repo,
+  });
+  const localHEAD = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repo,
+  })
+    .toString()
+    .trim();
+  const remoteHEAD = execFileSync("git", ["rev-parse", "@{u}"], {
+    cwd: repo,
+  })
+    .toString()
+    .trim();
+  console.error(`local: ${localHEAD} remote: ${remoteHEAD}`);
+  return localHEAD != remoteHEAD;
 }
 
 async function maybeKillOldServer(pidfile: string) {
