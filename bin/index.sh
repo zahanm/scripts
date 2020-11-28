@@ -1,5 +1,5 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 
-pushd "$0:a:h/../"
+pushd "$(dirname $0)/../"
 yarn ts-node --script-mode index.ts "$@"
 popd
