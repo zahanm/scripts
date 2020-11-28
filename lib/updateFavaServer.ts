@@ -4,6 +4,8 @@ import * as path from "path";
 
 import { pathExists } from "./utils";
 
+const LOG_DIR = "/home/zahanm/log/fava-server/";
+
 export async function updateFavaServer(
   opts: Record<string, any>,
   repo: string
@@ -15,11 +17,9 @@ export async function updateFavaServer(
   }
   const userId = execSync("id --user").toString().trim();
   const pidfile = `/tmp/fava-server-${userId}/server.pid`;
-  const dataDir = path.dirname(pidfile);
   await maybeKillOldServer(pidfile);
   updateGitRepo(repo);
-  await maybeMkdir(dataDir);
-  await spawnDetachedServer(dataDir, repo, pidfile);
+  await spawnDetachedServer(repo, pidfile);
 }
 
 async function checkArgs(repo: string) {
@@ -59,12 +59,16 @@ function updateGitRepo(repo: string) {
   spawnSync("git", ["merge", "origin/master"], { cwd: repo });
 }
 
+/**
+ * Checks if the old server is running using the pidfile
+ */
 async function maybeKillOldServer(pidfile: string) {
   let oldPid: number | null = null;
   try {
     oldPid = parseInt((await readFile(pidfile)).toString());
   } catch (e) {
-    throw e;
+    // ignore the case where this file doesn't exist
+    if (e.code !== "ENOENT") throw e;
   }
   if (oldPid != null) {
     console.error(`kill ${oldPid}`);
@@ -78,25 +82,13 @@ async function maybeKillOldServer(pidfile: string) {
   }
 }
 
-async function maybeMkdir(dir: string) {
-  try {
-    await mkdir(dir);
-  } catch (e) {
-    // Ignore the case where the directory already exists
-    if (e.code != "EEXIST") throw e;
-  }
-}
-
-async function spawnDetachedServer(
-  dataDir: string,
-  repo: string,
-  pidfile: string
-) {
-  const out = await open(path.join(dataDir, "out.log"), "a");
-  const err = await open(path.join(dataDir, "err.log"), "a");
+async function spawnDetachedServer(repo: string, pidfile: string) {
+  const out = await open(path.join(LOG_DIR, "out.log"), "a");
+  const err = await open(path.join(LOG_DIR, "err.log"), "a");
   console.error(
-    `Running: pipenv run fava personal.beancount --port 8080 --host=0.0.0.0`
+    "Running: pipenv run fava personal.beancount --port 8080 --host 0.0.0.0"
   );
+  console.error(`Output to ${path.join(LOG_DIR, "{out,err}.log")}`);
   const fava = spawn(
     "pipenv",
     [
@@ -116,6 +108,20 @@ async function spawnDetachedServer(
   );
   fava.unref();
   console.log(`PID: ${fava.pid}`);
-  console.error(`Writing to: ${pidfile}`);
-  await writeFile(pidfile, fava.pid.toString());
+  await writePidFile(pidfile, fava.pid);
+}
+
+async function writePidFile(pidfile: string, pid: number) {
+  await maybeMkdir(path.dirname(pidfile));
+  console.error(`Pid file: ${pidfile}`);
+  await writeFile(pidfile, pid.toString());
+}
+
+async function maybeMkdir(dir: string) {
+  try {
+    await mkdir(dir);
+  } catch (e) {
+    // Ignore the case where the directory already exists
+    if (e.code != "EEXIST") throw e;
+  }
 }
