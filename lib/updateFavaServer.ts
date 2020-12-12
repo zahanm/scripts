@@ -11,14 +11,15 @@ export async function updateFavaServer(
   repo: string
 ) {
   await checkArgs(repo);
-  if (!checkForGitUpdates(repo)) {
-    console.error(`Quitting. No updates to ${repo}`);
-    return;
-  }
   const userId = execSync("id --user").toString().trim();
   const pidfile = `/tmp/fava-server-${userId}/server.pid`;
   await maybeKillOldServer(pidfile);
-  updateGitRepo(repo);
+  if (checkForGitUpdates(repo)) {
+    console.error(`Updating ${repo}`);
+    updateGitRepo(repo);
+  } else {
+    console.error(`No updates to ${repo}`);
+  }
   await spawnDetachedServer(repo, pidfile);
 }
 
