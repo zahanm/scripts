@@ -35,10 +35,10 @@ async function main() {
     });
 
   program
-    .command("download-from-putio <rss-feed-url>")
+    .command("download-from-putio <rss-feed-url> <download-timestamp-file>")
     .description(".")
-    .action(async function (feedUrl: string) {
-      await downloadFromPutio(program.opts(), feedUrl);
+    .action(async function (feedUrl: string, downloadTsFile: string) {
+      await downloadFromPutio(program.opts(), feedUrl, downloadTsFile);
     });
 
   await program.parseAsync();

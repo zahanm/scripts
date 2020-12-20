@@ -1,5 +1,7 @@
-import Parser = require("rss-parser");
+import { open, readFile, stat } from "fs/promises";
 import { URL } from "url";
+
+import * as Parser from "rss-parser";
 
 /**
  * This is going to use Rclone as the interface to Put.io. That means it needs to be set up locally as a prerequisite.
@@ -10,20 +12,53 @@ import { URL } from "url";
  */
 export async function downloadFromPutio(
   opts: Record<string, any>,
-  feedUrl: string
+  feedUrl: string,
+  downloadTsFile: string
 ) {
   checkArgs(feedUrl);
-  await fetchShowRssFeed(feedUrl);
+  const allItems = await fetchShowRssFeed(feedUrl);
+  const lastDownload = await getLastDownloadTime(downloadTsFile);
+  const newItems = itemsNewerThan(allItems, lastDownload);
+  newItems.forEach((item) => {
+    console.log(`${item.title} -> ${item.link}`);
+  });
 }
 
 function checkArgs(url: string) {
   new URL(url);
 }
 
-async function fetchShowRssFeed(feedURL: string) {
-  const parser = new Parser();
+type TvFeed = {};
+type TvItem = { "tv:show_name": string; "tv:raw_title": string };
+type Item = Parser.Item & TvItem;
+
+async function fetchShowRssFeed(feedURL: string): Promise<Item[]> {
+  const parser = new Parser<TvFeed, TvItem>();
   const feed = await parser.parseURL(feedURL);
-  feed.items.forEach((item) => {
-    console.log(`${item.title} -> ${item.link}`);
+  console.log(`Got ${feed.items.length} items in the feed`);
+  return feed.items;
+}
+
+async function getLastDownloadTime(downloadTsFile: string): Promise<Date> {
+  try {
+    const stats = await stat(downloadTsFile);
+    return stats.mtime;
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return new Date(0);
+    } else {
+      throw err;
+    }
+  }
+}
+
+function itemsNewerThan(items: Item[], ts: Date): Item[] {
+  return items.filter((item) => {
+    const dt = items[0].isoDate;
+    if (dt != null) {
+      return new Date(dt) > ts;
+    } else {
+      return false;
+    }
   });
 }
