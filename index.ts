@@ -2,6 +2,7 @@ import { program } from "commander";
 import { helloWorld } from "./lib/helloWorld";
 import { copyAndroidRes } from "./lib/copyAndroidRes";
 import { updateFavaServer } from "./lib/updateFavaServer";
+import { downloadFromPutio } from "./lib/downloadFromPutio";
 
 async function main() {
   program
@@ -31,6 +32,13 @@ async function main() {
     )
     .action(async function (repo: string) {
       await updateFavaServer(program.opts(), repo);
+    });
+
+  program
+    .command("download-from-putio <rss-feed-url>")
+    .description(".")
+    .action(async function (feedUrl: string) {
+      await downloadFromPutio(program.opts(), feedUrl);
     });
 
   await program.parseAsync();

@@ -9,7 +9,8 @@
   "author": "z@zahanm.com",
   "license": "MIT",
   "dependencies": {
-    "commander": "^6.0.0"
+    "commander": "^6.0.0",
+    "rss-parser": "^3.10.0"
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.7",
