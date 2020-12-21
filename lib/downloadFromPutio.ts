@@ -1,4 +1,4 @@
-import { stat } from "fs/promises";
+import { stat, writeFile } from "fs/promises";
 import { URL } from "url";
 import { spawnSync } from "child_process";
 import * as path from "path";
@@ -36,6 +36,10 @@ export async function downloadFromPutio(
     } else {
       console.error(`Could not find ${item.title}.`);
     }
+  }
+  if (newItems.length > 0) {
+    console.error(`Bumping the mtime on ${downloadTsFile}`);
+    await bumpLastDownloadTime(downloadTsFile);
   }
 }
 
@@ -136,4 +140,9 @@ async function downloadItem(
   console.error(`rsync copy putio:'${entry.Path}' '${out}'`);
   spawnSync("rclone", ["copy", `putio:${entry.Path}`, out]);
   console.error(`Downloaded ${out}`);
+}
+
+async function bumpLastDownloadTime(downloadTsFile: string) {
+  const now = new Date();
+  await writeFile(downloadTsFile, now.toISOString());
 }
