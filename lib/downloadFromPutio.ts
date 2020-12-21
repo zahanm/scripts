@@ -27,7 +27,7 @@ export async function downloadFromPutio(
   const newItems = itemsNewerThan(allItems, lastDownload);
   console.error(`${newItems.length} new items to download.`);
   const putioEntries = await lsPutio();
-  for (const item of newItems.slice(0, 1)) {
+  for (const item of newItems) {
     const entry = findPutioEntry(putioEntries, item);
     if (entry) {
       console.error(`Found ${entry.Path} ${entry.IsDir}.`);
