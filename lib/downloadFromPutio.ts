@@ -1,6 +1,8 @@
 import { stat } from "fs/promises";
 import { URL } from "url";
 import { spawnSync } from "child_process";
+import * as path from "path";
+import { ok as assert } from "assert";
 
 import * as Parser from "rss-parser";
 import escapeStringRegexp = require("escape-string-regexp");
@@ -28,6 +30,8 @@ export async function downloadFromPutio(
     const entry = findPutioEntry(putioEntries, item);
     if (entry) {
       console.error(`Found ${entry.Path} ${entry.IsDir}.`);
+      const videoFile = await findVideoFile(entry);
+      await downloadItem(videoFile, item);
     } else {
       console.error(`Could not find ${item.title}.`);
     }
@@ -81,6 +85,7 @@ type PutioEntry = {
   Name: string;
   IsDir: boolean;
   ModTime: string;
+  MimeType: string;
 };
 
 async function lsPutio(): Promise<PutioEntry[]> {
@@ -102,4 +107,30 @@ function findPutioEntry(
   });
 }
 
-async function downloadItem() {}
+async function findVideoFile(topLevel: PutioEntry): Promise<PutioEntry> {
+  if (!topLevel.IsDir) {
+    assert(
+      topLevel.MimeType.startsWith("video/"),
+      `Not a video file: ${topLevel.Path}`
+    );
+    return topLevel;
+  }
+  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${topLevel.Path}`]);
+  const contents: PutioEntry[] = JSON.parse(stdout);
+  for (const entry of contents) {
+    if (entry.MimeType.startsWith("video/")) {
+      entry.Path = path.join(topLevel.Path, entry.Path);
+      return entry;
+    }
+  }
+  throw new Error(`Could not find video file for ${topLevel.Name}`);
+}
+
+async function downloadItem(entry: PutioEntry, item: Item) {
+  console.log("going to download");
+  console.log(entry);
+  console.log(item);
+  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${entry.Path}`]);
+  console.log(JSON.parse(stdout));
+  console.log(item["tv:show_name"]);
+}
