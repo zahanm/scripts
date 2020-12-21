@@ -6,6 +6,7 @@ import { ok as assert } from "assert";
 
 import * as Parser from "rss-parser";
 import escapeStringRegexp = require("escape-string-regexp");
+import { DateTime } from "luxon";
 
 /**
  * This is going to use Rclone as the interface to Put.io. That means it needs to be set up locally as a prerequisite.
@@ -24,6 +25,7 @@ export async function downloadFromPutio(
   const allItems = await fetchShowRssFeed(feedUrl);
   console.error(`Got ${allItems.length} items in the feed.`);
   const lastDownload = await getLastDownloadTime(downloadTsFile);
+  console.error(`Finding items newer than ${lastDownload}.`);
   const newItems = itemsNewerThan(allItems, lastDownload);
   console.error(`${newItems.length} new items to download.`);
   const putioEntries = await lsPutio();
@@ -65,24 +67,24 @@ async function fetchShowRssFeed(feedURL: string): Promise<Item[]> {
   return feed.items;
 }
 
-async function getLastDownloadTime(downloadTsFile: string): Promise<Date> {
+async function getLastDownloadTime(downloadTsFile: string): Promise<DateTime> {
   try {
     const stats = await stat(downloadTsFile);
-    return stats.mtime;
+    return DateTime.fromJSDate(stats.mtime);
   } catch (err) {
     if (err.code === "ENOENT") {
-      return new Date(0);
+      return DateTime.local();
     } else {
       throw err;
     }
   }
 }
 
-function itemsNewerThan(items: Item[], ts: Date): Item[] {
+function itemsNewerThan(items: Item[], ts: DateTime): Item[] {
   return items.filter((item) => {
-    const dt = items[0].isoDate;
+    const dt = item.isoDate;
     if (dt != null) {
-      return new Date(dt) > ts;
+      return DateTime.fromISO(dt) > ts;
     } else {
       return false;
     }
@@ -147,6 +149,5 @@ async function downloadItem(
 }
 
 async function bumpLastDownloadTime(downloadTsFile: string) {
-  const now = new Date();
-  await writeFile(downloadTsFile, now.toISOString());
+  await writeFile(downloadTsFile, DateTime.local().toString());
 }
