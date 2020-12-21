@@ -32,12 +32,16 @@ export async function downloadFromPutio(
     if (entry) {
       console.error(`Found ${entry.Path} ${entry.IsDir}.`);
       const videoFile = await findVideoFile(entry);
-      await downloadItem(videoFile, item, tvShowsFolder);
+      if (opts.commit) {
+        await downloadItem(videoFile, item, tvShowsFolder);
+      } else {
+        console.error(`Would have downloaded ${videoFile.Path}`);
+      }
     } else {
       console.error(`Could not find ${item.title}.`);
     }
   }
-  if (newItems.length > 0) {
+  if (newItems.length > 0 && opts.commit) {
     console.error(`Bumping the mtime on ${downloadTsFile}`);
     await bumpLastDownloadTime(downloadTsFile);
   }
