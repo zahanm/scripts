@@ -17,7 +17,8 @@ import escapeStringRegexp = require("escape-string-regexp");
 export async function downloadFromPutio(
   opts: Record<string, any>,
   feedUrl: string,
-  downloadTsFile: string
+  downloadTsFile: string,
+  tvShowsFolder: string
 ) {
   checkArgs(feedUrl);
   const allItems = await fetchShowRssFeed(feedUrl);
@@ -31,7 +32,7 @@ export async function downloadFromPutio(
     if (entry) {
       console.error(`Found ${entry.Path} ${entry.IsDir}.`);
       const videoFile = await findVideoFile(entry);
-      await downloadItem(videoFile, item);
+      await downloadItem(videoFile, item, tvShowsFolder);
     } else {
       console.error(`Could not find ${item.title}.`);
     }
@@ -126,11 +127,13 @@ async function findVideoFile(topLevel: PutioEntry): Promise<PutioEntry> {
   throw new Error(`Could not find video file for ${topLevel.Name}`);
 }
 
-async function downloadItem(entry: PutioEntry, item: Item) {
-  console.log("going to download");
-  console.log(entry);
-  console.log(item);
-  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${entry.Path}`]);
-  console.log(JSON.parse(stdout));
-  console.log(item["tv:show_name"]);
+async function downloadItem(
+  entry: PutioEntry,
+  item: Item,
+  tvShowsFolder: string
+) {
+  const out = path.join(tvShowsFolder, item["tv:show_name"]);
+  console.error(`rsync copy putio:'${entry.Path}' '${out}'`);
+  spawnSync("rclone", ["copy", `putio:${entry.Path}`, out]);
+  console.error(`Downloaded ${out}`);
 }

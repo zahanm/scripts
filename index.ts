@@ -35,10 +35,21 @@ async function main() {
     });
 
   program
-    .command("download-from-putio <rss-feed-url> <download-timestamp-file>")
+    .command(
+      "download-from-putio <rss-feed-url> <download-timestamp-file> <tv-shows-dir>"
+    )
     .description(".")
-    .action(async function (feedUrl: string, downloadTsFile: string) {
-      await downloadFromPutio(program.opts(), feedUrl, downloadTsFile);
+    .action(async function (
+      feedUrl: string,
+      downloadTsFile: string,
+      tvShowsFolder: string
+    ) {
+      await downloadFromPutio(
+        program.opts(),
+        feedUrl,
+        downloadTsFile,
+        tvShowsFolder
+      );
     });
 
   await program.parseAsync();
