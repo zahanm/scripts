@@ -2,7 +2,7 @@ import { execFileSync, execSync, spawn, spawnSync } from "child_process";
 import { mkdir, open, readFile, writeFile } from "fs/promises";
 import * as path from "path";
 
-import { pathExists } from "./utils";
+import { logWithTimestamp, pathExists } from "./utils";
 
 const LOG_DIR = "/home/zahanm/log/fava-server/";
 
@@ -15,10 +15,10 @@ export async function updateFavaServer(
   const pidfile = `/tmp/fava-server-${userId}/server.pid`;
   await maybeKillOldServer(pidfile);
   if (checkForGitUpdates(repo)) {
-    console.error(`Updating ${repo}`);
+    logWithTimestamp(`Updating ${repo}`);
     updateGitRepo(repo);
   } else {
-    console.error(`No updates to ${repo}`);
+    logWithTimestamp(`No updates to ${repo}`);
   }
   await spawnDetachedServer(repo, pidfile);
 }
@@ -36,7 +36,7 @@ async function checkArgs(repo: string) {
  * @returns whether there are updates to this repo
  */
 function checkForGitUpdates(repo: string): boolean {
-  console.error("git fetch");
+  logWithTimestamp("git fetch");
   // need to run this in the pipenv since the dropbox remote helper is installed there
   spawnSync("pipenv", ["run", "git", "fetch"], {
     cwd: repo,
@@ -51,12 +51,12 @@ function checkForGitUpdates(repo: string): boolean {
   })
     .toString()
     .trim();
-  console.error(`local: ${localHEAD} remote: ${remoteHEAD}`);
+  logWithTimestamp(`local: ${localHEAD} remote: ${remoteHEAD}`);
   return localHEAD != remoteHEAD;
 }
 
 function updateGitRepo(repo: string) {
-  console.error("git merge origin/master --ff-only");
+  logWithTimestamp("git merge origin/master --ff-only");
   spawnSync("git", ["merge", "origin/master"], { cwd: repo });
 }
 
@@ -72,13 +72,13 @@ async function maybeKillOldServer(pidfile: string) {
     if (e.code !== "ENOENT") throw e;
   }
   if (oldPid != null) {
-    console.error(`kill ${oldPid}`);
+    logWithTimestamp(`kill ${oldPid}`);
     try {
       process.kill(oldPid);
     } catch (e) {
       if (e.code === "EPERM") throw e;
       // otherwise, the process doesn't exist - ie, it's not running
-      console.error("Old server died.");
+      logWithTimestamp("Old server died.");
     }
   }
 }
@@ -86,8 +86,8 @@ async function maybeKillOldServer(pidfile: string) {
 async function spawnDetachedServer(repo: string, pidfile: string) {
   const out = await open(path.join(LOG_DIR, "out.log"), "a");
   const err = await open(path.join(LOG_DIR, "err.log"), "a");
-  console.error("Running: pipenv run fava personal.beancount --port 8080");
-  console.error(`Output to ${path.join(LOG_DIR, "{out,err}.log")}`);
+  logWithTimestamp("Running: pipenv run fava personal.beancount --port 8080");
+  logWithTimestamp(`Output to ${path.join(LOG_DIR, "{out,err}.log")}`);
   const fava = spawn(
     "pipenv",
     ["run", "fava", "personal.beancount", "--port", "8080"],
@@ -104,7 +104,7 @@ async function spawnDetachedServer(repo: string, pidfile: string) {
 
 async function writePidFile(pidfile: string, pid: number) {
   await maybeMkdir(path.dirname(pidfile));
-  console.error(`Pid file: ${pidfile}`);
+  logWithTimestamp(`Pid file: ${pidfile}`);
   await writeFile(pidfile, pid.toString());
 }
 

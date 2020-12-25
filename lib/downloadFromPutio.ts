@@ -8,6 +8,8 @@ import * as Parser from "rss-parser";
 import escapeStringRegexp = require("escape-string-regexp");
 import { DateTime } from "luxon";
 
+import { logWithTimestamp } from "./utils";
+
 /**
  * This is going to use Rclone as the interface to Put.io. That means it needs to be set up locally as a prerequisite.
  * 1. Fetch showRSS.info feed
@@ -23,28 +25,28 @@ export async function downloadFromPutio(
 ) {
   checkArgs(feedUrl);
   const allItems = await fetchShowRssFeed(feedUrl);
-  console.error(`Got ${allItems.length} items in the feed.`);
+  logWithTimestamp(`Got ${allItems.length} items in the feed.`);
   const lastDownload = await getLastDownloadTime(downloadTsFile);
-  console.error(`Finding items newer than ${lastDownload}.`);
+  logWithTimestamp(`Finding items newer than ${lastDownload}.`);
   const newItems = itemsNewerThan(allItems, lastDownload);
-  console.error(`${newItems.length} new items to download.`);
+  logWithTimestamp(`${newItems.length} new items to download.`);
   const putioEntries = await lsPutio();
   for (const item of newItems) {
     const entry = findPutioEntry(putioEntries, item);
     if (entry) {
-      console.error(`Found ${entry.Path} ${entry.IsDir}.`);
+      logWithTimestamp(`Found ${entry.Path} ${entry.IsDir}.`);
       const videoFile = await findVideoFile(entry);
       if (opts.commit) {
         await downloadItem(videoFile, item, tvShowsFolder);
       } else {
-        console.error(`Would have downloaded ${videoFile.Path}`);
+        logWithTimestamp(`Would have downloaded ${videoFile.Path}`);
       }
     } else {
-      console.error(`Could not find ${item.title}.`);
+      logWithTimestamp(`Could not find ${item.title}.`);
     }
   }
   if (newItems.length > 0 && opts.commit) {
-    console.error(`Bumping the mtime on ${downloadTsFile}`);
+    logWithTimestamp(`Bumping the mtime on ${downloadTsFile}`);
     await bumpLastDownloadTime(downloadTsFile);
   }
 }
@@ -143,9 +145,9 @@ async function downloadItem(
   tvShowsFolder: string
 ) {
   const out = path.join(tvShowsFolder, item["tv:show_name"]);
-  console.error(`rsync copy putio:'${entry.Path}' '${out}'`);
+  logWithTimestamp(`rsync copy putio:'${entry.Path}' '${out}'`);
   spawnSync("rclone", ["copy", `putio:${entry.Path}`, out]);
-  console.error(`Downloaded ${out}`);
+  logWithTimestamp(`Downloaded ${out}`);
 }
 
 async function bumpLastDownloadTime(downloadTsFile: string) {
