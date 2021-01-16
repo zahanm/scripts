@@ -1,4 +1,4 @@
-import { stat, writeFile } from "fs/promises";
+import { stat, writeFile, readFile } from "fs/promises";
 import { URL } from "url";
 import { spawnSync } from "child_process";
 import * as path from "path";
@@ -7,6 +7,7 @@ import { ok as assert } from "assert";
 import * as Parser from "rss-parser";
 import escapeStringRegexp = require("escape-string-regexp");
 import { DateTime } from "luxon";
+import * as csvParse from "csv-parse/lib/sync";
 
 import { logWithTimestamp } from "./utils";
 
@@ -37,7 +38,8 @@ export async function downloadTvShowsFromPutio(
       logWithTimestamp(`Found ${entry.Path} ${entry.IsDir}.`);
       const videoFile = await findVideoFile(entry);
       if (opts.commit) {
-        await downloadItem(videoFile, item, tvShowsFolder);
+        const outputFolder = path.join(tvShowsFolder, item["tv:show_name"]);
+        await downloadItem(videoFile, outputFolder);
       } else {
         logWithTimestamp(`Would have downloaded ${videoFile.Path}`);
       }
@@ -48,6 +50,34 @@ export async function downloadTvShowsFromPutio(
   if (newItems.length > 0 && opts.commit) {
     logWithTimestamp(`Bumping the mtime on ${downloadTsFile}`);
     await bumpLastDownloadTime(downloadTsFile);
+  }
+}
+
+/**
+ * This takes a input file that is a TSV with movie folder / filename in column 1, and the destination folder name (ie, the film name with the year) in column 2.
+ */
+export async function downloadMoviesFromPutio(
+  opts: Record<string, any>,
+  inputFile: string,
+  moviesFolder: string
+) {
+  const inputContents = await readFile(inputFile, { encoding: "utf8" });
+  const records = csvParse(inputContents, { delimiter: "\t", trim: true });
+  logWithTimestamp(`${records.length} movies to download.`);
+  for (const record of records) {
+    const remoteName = record[0];
+    const movieName = record[1];
+    logWithTimestamp(`${movieName}`);
+    const remoteEntry = await lsPutioEntryForPath(remoteName);
+    const videoEntry = await findVideoFile(remoteEntry);
+    const localDest = path.join(moviesFolder, movieName);
+    if (opts.commit) {
+      await downloadItem(videoEntry, localDest);
+    } else {
+      logWithTimestamp(
+        `Would have downloaded ${videoEntry.Path}, to ${localDest}`
+      );
+    }
   }
 }
 
@@ -107,6 +137,19 @@ async function lsPutio(): Promise<PutioEntry[]> {
   return out;
 }
 
+async function lsPutioEntryForPath(remotePath: string): Promise<PutioEntry> {
+  const dir = path.dirname(remotePath);
+  const name = path.basename(remotePath);
+  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${dir}`]);
+  const out: PutioEntry[] = JSON.parse(stdout);
+  const entry = out.find((entry) => {
+    return name === entry.Name;
+  });
+  assert(entry, `${name} is not present in ${dir}.`);
+  entry.Path = path.join(dir, name); // this removes the trailing slash if present
+  return entry;
+}
+
 function findPutioEntry(
   putioEntries: PutioEntry[],
   item: Item
@@ -139,15 +182,10 @@ async function findVideoFile(topLevel: PutioEntry): Promise<PutioEntry> {
   throw new Error(`Could not find video file for ${topLevel.Name}`);
 }
 
-async function downloadItem(
-  entry: PutioEntry,
-  item: Item,
-  tvShowsFolder: string
-) {
-  const out = path.join(tvShowsFolder, item["tv:show_name"]);
-  logWithTimestamp(`rsync copy putio:'${entry.Path}' '${out}'`);
-  spawnSync("rclone", ["copy", `putio:${entry.Path}`, out]);
-  logWithTimestamp(`Downloaded ${out}`);
+async function downloadItem(entry: PutioEntry, outputFolder: string) {
+  logWithTimestamp(`rsync copy putio:'${entry.Path}' '${outputFolder}'`);
+  spawnSync("rclone", ["copy", `putio:${entry.Path}`, outputFolder]);
+  logWithTimestamp(`Downloaded ${outputFolder}`);
 }
 
 async function bumpLastDownloadTime(downloadTsFile: string) {

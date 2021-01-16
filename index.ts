@@ -3,7 +3,10 @@ import { program } from "commander";
 import { helloWorld } from "./lib/helloWorld";
 import { copyAndroidRes } from "./lib/copyAndroidRes";
 import { updateFavaServer } from "./lib/updateFavaServer";
-import { downloadTvShowsFromPutio } from "./lib/downloadFromPutio";
+import {
+  downloadMoviesFromPutio,
+  downloadTvShowsFromPutio,
+} from "./lib/downloadFromPutio";
 
 async function main() {
   program
@@ -51,6 +54,13 @@ async function main() {
         downloadTsFile,
         tvShowsFolder
       );
+    });
+
+  program
+    .command("download-movies-from-putio <input-tsv-file> <movies-dir>")
+    .description(".")
+    .action(async function (inputFile: string, moviesFolder: string) {
+      await downloadMoviesFromPutio(program.opts(), inputFile, moviesFolder);
     });
 
   await program.parseAsync();
