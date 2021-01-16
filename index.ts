@@ -11,7 +11,8 @@ import {
 async function main() {
   program
     .name("scripts")
-    .option("-x, --commit", "Take action that could commit changes.", false);
+    .option("-x, --commit", "Take action that could commit changes.", false)
+    .option("-v, --debug", "Show verbose logging to debug.", false);
 
   program
     .command("hello-world")

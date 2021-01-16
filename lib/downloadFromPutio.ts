@@ -9,7 +9,7 @@ import escapeStringRegexp = require("escape-string-regexp");
 import { DateTime } from "luxon";
 import * as csvParse from "csv-parse/lib/sync";
 
-import { logWithTimestamp } from "./utils";
+import { logWithTimestamp, pathExists } from "./utils";
 
 /**
  * This is going to use Rclone as the interface to Put.io. That means it needs to be set up locally as a prerequisite.
@@ -31,12 +31,12 @@ export async function downloadTvShowsFromPutio(
   logWithTimestamp(`Finding items newer than ${lastDownload}.`);
   const newItems = itemsNewerThan(allItems, lastDownload);
   logWithTimestamp(`${newItems.length} new items to download.`);
-  const putioEntries = await lsPutio();
+  const putioEntries = await lsPutio(opts, /* root folder */ "");
   for (const item of newItems) {
     const entry = findPutioEntry(putioEntries, item);
     if (entry) {
       logWithTimestamp(`Found ${entry.Path} ${entry.IsDir}.`);
-      const videoFile = await findVideoFile(entry);
+      const videoFile = await findVideoFile(opts, entry);
       if (opts.commit) {
         const outputFolder = path.join(tvShowsFolder, item["tv:show_name"]);
         await downloadItem(videoFile, outputFolder);
@@ -68,9 +68,13 @@ export async function downloadMoviesFromPutio(
     const remoteName = record[0];
     const movieName = record[1];
     logWithTimestamp(`${movieName}`);
-    const remoteEntry = await lsPutioEntryForPath(remoteName);
-    const videoEntry = await findVideoFile(remoteEntry);
     const localDest = path.join(moviesFolder, movieName);
+    const remoteEntry = await getPutioEntryForPath(opts, remoteName);
+    if (await pathExists(localDest)) {
+      logWithTimestamp(`${localDest} is already downloaded.`);
+      continue;
+    }
+    const videoEntry = await findVideoFile(opts, remoteEntry);
     if (opts.commit) {
       await downloadItem(videoEntry, localDest);
     } else {
@@ -78,6 +82,7 @@ export async function downloadMoviesFromPutio(
         `Would have downloaded ${videoEntry.Path}, to ${localDest}`
       );
     }
+    await findAndDownloadSubtitles(opts, remoteEntry, localDest);
   }
 }
 
@@ -131,18 +136,14 @@ type PutioEntry = {
   MimeType: string;
 };
 
-async function lsPutio(): Promise<PutioEntry[]> {
-  const { stdout } = spawnSync("rclone", ["lsjson", "putio:"]);
-  const out: PutioEntry[] = JSON.parse(stdout);
-  return out;
-}
-
-async function lsPutioEntryForPath(remotePath: string): Promise<PutioEntry> {
+async function getPutioEntryForPath(
+  opts: Record<string, any>,
+  remotePath: string
+): Promise<PutioEntry> {
   const dir = path.dirname(remotePath);
   const name = path.basename(remotePath);
-  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${dir}`]);
-  const out: PutioEntry[] = JSON.parse(stdout);
-  const entry = out.find((entry) => {
+  const entries = await lsPutio(opts, dir);
+  const entry = entries.find((entry) => {
     return name === entry.Name;
   });
   assert(entry, `${name} is not present in ${dir}.`);
@@ -163,7 +164,10 @@ function findPutioEntry(
   });
 }
 
-async function findVideoFile(topLevel: PutioEntry): Promise<PutioEntry> {
+async function findVideoFile(
+  opts: Record<string, any>,
+  topLevel: PutioEntry
+): Promise<PutioEntry> {
   if (!topLevel.IsDir) {
     assert(
       topLevel.MimeType.startsWith("video/"),
@@ -171,8 +175,7 @@ async function findVideoFile(topLevel: PutioEntry): Promise<PutioEntry> {
     );
     return topLevel;
   }
-  const { stdout } = spawnSync("rclone", ["lsjson", `putio:${topLevel.Path}`]);
-  const contents: PutioEntry[] = JSON.parse(stdout);
+  const contents = await lsPutio(opts, topLevel.Path);
   for (const entry of contents) {
     if (entry.MimeType.startsWith("video/")) {
       entry.Path = path.join(topLevel.Path, entry.Path);
@@ -186,6 +189,70 @@ async function downloadItem(entry: PutioEntry, outputFolder: string) {
   logWithTimestamp(`rsync copy putio:'${entry.Path}' '${outputFolder}'`);
   spawnSync("rclone", ["copy", `putio:${entry.Path}`, outputFolder]);
   logWithTimestamp(`Downloaded ${outputFolder}`);
+}
+
+async function findAndDownloadSubtitles(
+  opts: Record<string, any>,
+  remoteDir: PutioEntry,
+  localDest: string
+) {
+  if (!remoteDir.IsDir) {
+    logWithTimestamp(
+      `Cannot check for subtitles with just a file ${remoteDir}`
+    );
+    return;
+  }
+  const contents = await lsPutio(opts, remoteDir.Path, /* recursive */ true);
+  const subtitleFiles = [];
+  for (const entry of contents) {
+    if (path.extname(entry.Name) === ".srt") {
+      entry.Path = path.join(remoteDir.Path, entry.Path);
+      subtitleFiles.push(entry);
+    }
+  }
+  if (subtitleFiles.length < 1) {
+    logWithTimestamp(`No subtitles ${remoteDir}`);
+    return;
+  }
+  let enSubtitleFile;
+  if (subtitleFiles.length === 1) {
+    enSubtitleFile = subtitleFiles[0];
+  } else {
+    enSubtitleFile = subtitleFiles.find((entry) => {
+      return /(^|\W)(english|en)\W/.exec(entry.Name);
+    });
+    if (!enSubtitleFile) {
+      logWithTimestamp(`No subtitles ${remoteDir}`);
+      return;
+    }
+  }
+  logWithTimestamp(`English subtitles file found: ${enSubtitleFile.Path}`);
+  if (opts.commit) {
+    downloadItem(enSubtitleFile, localDest);
+  }
+}
+
+async function lsPutio(
+  opts: Record<string, any>,
+  remotePath: string,
+  recursive: boolean = false
+): Promise<PutioEntry[]> {
+  if (remotePath === ".") {
+    // special-case the root directory that rclone doesn't understand
+    remotePath = "";
+  }
+  const args = ["lsjson", `putio:${remotePath}`];
+  if (recursive) {
+    args.push("--recursive");
+  }
+  logWithTimestamp(`rclone ${args.join(" ")}`);
+  const { stdout, stderr } = spawnSync("rclone", args);
+  if (opts.debug) {
+    console.error(stdout.toString());
+    console.error(stderr.toString());
+  }
+  const out: PutioEntry[] = JSON.parse(stdout);
+  return out;
 }
 
 async function bumpLastDownloadTime(downloadTsFile: string) {
