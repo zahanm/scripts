@@ -3,7 +3,7 @@ import { program } from "commander";
 import { helloWorld } from "./lib/helloWorld";
 import { copyAndroidRes } from "./lib/copyAndroidRes";
 import { updateFavaServer } from "./lib/updateFavaServer";
-import { downloadFromPutio } from "./lib/downloadFromPutio";
+import { downloadTvShowsFromPutio } from "./lib/downloadFromPutio";
 
 async function main() {
   program
@@ -45,7 +45,7 @@ async function main() {
       downloadTsFile: string,
       tvShowsFolder: string
     ) {
-      await downloadFromPutio(
+      await downloadTvShowsFromPutio(
         program.opts(),
         feedUrl,
         downloadTsFile,

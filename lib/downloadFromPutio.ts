@@ -17,7 +17,7 @@ import { logWithTimestamp } from "./utils";
  * 3. Look for each item in Put.io, see if it's there yet
  * 4. Download that item using Rclone, and put it in the right folder
  */
-export async function downloadFromPutio(
+export async function downloadTvShowsFromPutio(
   opts: Record<string, any>,
   feedUrl: string,
   downloadTsFile: string,
