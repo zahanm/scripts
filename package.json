@@ -10,6 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^6.0.0",
+    "csv-parse": "^4.14.2",
     "escape-string-regexp": "^4.0.0",
     "luxon": "^1.25.0",
     "rss-parser": "^3.10.0"
