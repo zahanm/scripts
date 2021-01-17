@@ -53,42 +53,11 @@ export async function downloadTvShowsFromPutio(
   }
 }
 
-/**
- * This takes a input file that is a TSV with movie folder / filename in column 1, and the destination folder name (ie, the film name with the year) in column 2.
- */
-export async function downloadMoviesFromPutio(
-  opts: Record<string, any>,
-  inputFile: string,
-  moviesFolder: string
-) {
-  const inputContents = await readFile(inputFile, { encoding: "utf8" });
-  const records = csvParse(inputContents, { delimiter: "\t", trim: true });
-  logWithTimestamp(`${records.length} movies to download.`);
-  for (const record of records) {
-    const remoteName = record[0];
-    const movieName = record[1];
-    logWithTimestamp(`${movieName}`);
-    const localDest = path.join(moviesFolder, movieName);
-    const remoteEntry = await getPutioEntryForPath(opts, remoteName);
-    if (await pathExists(localDest)) {
-      logWithTimestamp(`${localDest} is already downloaded.`);
-      continue;
-    }
-    const videoEntry = await findVideoFile(opts, remoteEntry);
-    if (opts.commit) {
-      await downloadItem(videoEntry, localDest);
-    } else {
-      logWithTimestamp(
-        `Would have downloaded ${videoEntry.Path}, to ${localDest}`
-      );
-    }
-    await findAndDownloadSubtitles(opts, remoteEntry, localDest);
-  }
-}
-
 function checkArgs(url: string) {
   new URL(url);
 }
+
+//#region showRss.info
 
 type TvFeed = {};
 type TvItem = { "tv:show_name": string; "tv:raw_title": string };
@@ -127,6 +96,48 @@ function itemsNewerThan(items: Item[], ts: DateTime): Item[] {
     }
   });
 }
+
+//#endregion showRss.info
+
+/**
+ * This takes a input file that is a TSV with movie folder / filename in column 1, and the destination folder name (ie, the film name with the year) in column 2.
+ */
+export async function downloadMoviesFromPutio(
+  opts: Record<string, any>,
+  inputFile: string,
+  moviesFolder: string
+) {
+  const inputContents = await readFile(inputFile, { encoding: "utf8" });
+  const records = csvParse(inputContents, { delimiter: "\t", trim: true });
+  logWithTimestamp(`${records.length} movies to download.`);
+  for (const record of records) {
+    const remoteName = record[0];
+    const movieName = record[1];
+    logWithTimestamp(`${movieName}`);
+    const localDest = path.join(moviesFolder, movieName);
+    const remoteEntry = await getPutioEntryForPath(opts, remoteName);
+    if (await checkForVideoFile(localDest)) {
+      logWithTimestamp(`${localDest} is already downloaded.`);
+      continue;
+    }
+    const videoEntry = await findVideoFile(opts, remoteEntry);
+    if (opts.commit) {
+      await downloadItem(videoEntry, localDest);
+    } else {
+      logWithTimestamp(
+        `Would have downloaded ${videoEntry.Path}, to ${localDest}`
+      );
+    }
+    await findAndDownloadSubtitles(opts, remoteEntry, localDest);
+  }
+}
+
+async function checkForVideoFile(localDir: string): Promise<boolean> {
+  return await pathExists(localDir);
+}
+
+//#region put.io
+// and rclone
 
 type PutioEntry = {
   Path: string;
@@ -267,6 +278,8 @@ async function downloadItem(entry: PutioEntry, outputFolder: string) {
   spawnSync("rclone", ["copy", `putio:${entry.Path}`, outputFolder]);
   logWithTimestamp(`Downloaded ${outputFolder}`);
 }
+
+//#endregion put.io
 
 async function bumpLastDownloadTime(downloadTsFile: string) {
   await writeFile(downloadTsFile, DateTime.local().toString());
