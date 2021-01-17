@@ -1,4 +1,10 @@
-import { stat, writeFile, readFile, rename as renameFile } from "fs/promises";
+import {
+  stat,
+  writeFile,
+  readFile,
+  rename as renameFile,
+  opendir,
+} from "fs/promises";
 import { URL } from "url";
 import { spawnSync } from "child_process";
 import * as path from "path";
@@ -8,6 +14,7 @@ import * as Parser from "rss-parser";
 import escapeStringRegexp = require("escape-string-regexp");
 import { DateTime } from "luxon";
 import * as csvParse from "csv-parse/lib/sync";
+import * as mime from "mime-types";
 
 import { logWithTimestamp, pathExists } from "./utils";
 
@@ -99,6 +106,8 @@ function itemsNewerThan(items: Item[], ts: DateTime): Item[] {
 
 //#endregion showRss.info
 
+//#region download movie
+
 /**
  * This takes a input file that is a TSV with movie folder / filename in column 1, and the destination folder name (ie, the film name with the year) in column 2.
  */
@@ -116,8 +125,13 @@ export async function downloadMoviesFromPutio(
     logWithTimestamp(`${movieName}`);
     const localDest = path.join(moviesFolder, movieName);
     const remoteEntry = await getPutioEntryForPath(opts, remoteName);
-    if (await checkForVideoFile(localDest)) {
-      logWithTimestamp(`${localDest} is already downloaded.`);
+    if (await localVideoFileExists(opts, localDest)) {
+      logWithTimestamp(`${localDest} video is already downloaded.`);
+      if (await localSubtitlesFileExists(opts, localDest)) {
+        logWithTimestamp(`${localDest} subtitles are already downloaded.`);
+      } else {
+        await findAndDownloadSubtitles(opts, remoteEntry, localDest);
+      }
       continue;
     }
     const videoEntry = await findVideoFile(opts, remoteEntry);
@@ -132,9 +146,46 @@ export async function downloadMoviesFromPutio(
   }
 }
 
-async function checkForVideoFile(localDir: string): Promise<boolean> {
-  return await pathExists(localDir);
+async function localVideoFileExists(
+  opts: Record<string, any>,
+  localDir: string
+): Promise<boolean> {
+  if (!(await pathExists(localDir))) {
+    return false;
+  }
+  const dir = await opendir(localDir);
+  for await (const dirEntry of dir) {
+    const mimeType = mime.lookup(dirEntry.name);
+    if (!mimeType) {
+      continue;
+    }
+    if (opts.debug) {
+      console.error(`${dirEntry.name} => ${mimeType}`);
+    }
+    if (mimeType.startsWith("video/")) {
+      return true;
+    }
+  }
+  return false;
 }
+
+async function localSubtitlesFileExists(
+  opts: Record<string, any>,
+  localDir: string
+): Promise<boolean> {
+  if (!(await pathExists(localDir))) {
+    return false;
+  }
+  const dir = await opendir(localDir);
+  for await (const dirEntry of dir) {
+    if (dirEntry.name.endsWith(".en.srt")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+//#endregion download movie
 
 //#region put.io
 // and rclone
@@ -216,7 +267,7 @@ async function findAndDownloadSubtitles(
     }
   }
   if (subtitleFiles.length < 1) {
-    logWithTimestamp(`No subtitles ${remoteDir}`);
+    logWithTimestamp(`No subtitles ${remoteDir.Path}`);
     return;
   }
   let enSubtitleFile;
@@ -227,7 +278,7 @@ async function findAndDownloadSubtitles(
       return /(^|\W)(english|en)\W/i.exec(entry.Name);
     });
     if (!enSubtitleFile) {
-      logWithTimestamp(`No subtitles ${remoteDir}`);
+      logWithTimestamp(`No subtitles ${remoteDir.Path}`);
       return;
     }
   }
@@ -243,10 +294,16 @@ async function findAndDownloadSubtitles(
     )}.en.srt`;
     if (opts.commit) {
       await renameFile(localFile, withLanguage);
+      logWithTimestamp(`Downloaded subtitles as ${withLanguage}`);
+    } else {
+      logWithTimestamp(`Would download subtitles as ${withLanguage}`);
     }
-    logWithTimestamp(`Downloaded subtitles as ${withLanguage}`);
   } else {
-    logWithTimestamp(`Downloaded subtitles as ${localFile}`);
+    if (opts.commit) {
+      logWithTimestamp(`Downloaded subtitles as ${localFile}`);
+    } else {
+      logWithTimestamp(`Would download subtitles as ${localFile}`);
+    }
   }
 }
 

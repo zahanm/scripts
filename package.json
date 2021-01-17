@@ -13,11 +13,13 @@
     "csv-parse": "^4.14.2",
     "escape-string-regexp": "^4.0.0",
     "luxon": "^1.25.0",
+    "mime-types": "^2.1.28",
     "rss-parser": "^3.10.0"
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.7",
     "@types/luxon": "^1.25.0",
+    "@types/mime-types": "^2.1.0",
     "@types/node": "^14.6.0",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2"
