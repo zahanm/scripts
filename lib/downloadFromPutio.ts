@@ -192,7 +192,7 @@ async function findAndDownloadSubtitles(
 ) {
   if (!remoteDir.IsDir) {
     logWithTimestamp(
-      `Cannot check for subtitles with just a file ${remoteDir}`
+      `Cannot check for subtitles with just a file ${remoteDir.Path}`
     );
     return;
   }
