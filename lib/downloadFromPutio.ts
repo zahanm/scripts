@@ -1,4 +1,4 @@
-import { stat, writeFile, readFile } from "fs/promises";
+import { stat, writeFile, readFile, rename as renameFile } from "fs/promises";
 import { URL } from "url";
 import { spawnSync } from "child_process";
 import * as path from "path";
@@ -185,12 +185,6 @@ async function findVideoFile(
   throw new Error(`Could not find video file for ${topLevel.Name}`);
 }
 
-async function downloadItem(entry: PutioEntry, outputFolder: string) {
-  logWithTimestamp(`rsync copy putio:'${entry.Path}' '${outputFolder}'`);
-  spawnSync("rclone", ["copy", `putio:${entry.Path}`, outputFolder]);
-  logWithTimestamp(`Downloaded ${outputFolder}`);
-}
-
 async function findAndDownloadSubtitles(
   opts: Record<string, any>,
   remoteDir: PutioEntry,
@@ -219,7 +213,7 @@ async function findAndDownloadSubtitles(
     enSubtitleFile = subtitleFiles[0];
   } else {
     enSubtitleFile = subtitleFiles.find((entry) => {
-      return /(^|\W)(english|en)\W/.exec(entry.Name);
+      return /(^|\W)(english|en)\W/i.exec(entry.Name);
     });
     if (!enSubtitleFile) {
       logWithTimestamp(`No subtitles ${remoteDir}`);
@@ -229,6 +223,19 @@ async function findAndDownloadSubtitles(
   logWithTimestamp(`English subtitles file found: ${enSubtitleFile.Path}`);
   if (opts.commit) {
     downloadItem(enSubtitleFile, localDest);
+  }
+  const localFile = path.join(localDest, enSubtitleFile.Name);
+  if (!localFile.endsWith(".en.srt")) {
+    const withLanguage = `${localFile.replace(
+      /(\W(english|en))?.srt$/i,
+      ""
+    )}.en.srt`;
+    if (opts.commit) {
+      await renameFile(localFile, withLanguage);
+    }
+    logWithTimestamp(`Downloaded subtitles as ${withLanguage}`);
+  } else {
+    logWithTimestamp(`Downloaded subtitles as ${localFile}`);
   }
 }
 
@@ -253,6 +260,12 @@ async function lsPutio(
   }
   const out: PutioEntry[] = JSON.parse(stdout);
   return out;
+}
+
+async function downloadItem(entry: PutioEntry, outputFolder: string) {
+  logWithTimestamp(`rsync copy putio:'${entry.Path}' '${outputFolder}'`);
+  spawnSync("rclone", ["copy", `putio:${entry.Path}`, outputFolder]);
+  logWithTimestamp(`Downloaded ${outputFolder}`);
 }
 
 async function bumpLastDownloadTime(downloadTsFile: string) {
