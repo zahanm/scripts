@@ -267,7 +267,7 @@ async function findAndDownloadSubtitles(
     }
   }
   if (subtitleFiles.length < 1) {
-    logWithTimestamp(`No subtitles ${remoteDir.Path}`);
+    logWithTimestamp(`No subtitles for ${remoteDir.Path}`);
     return;
   }
   let enSubtitleFile;
@@ -278,7 +278,7 @@ async function findAndDownloadSubtitles(
       return /(^|\W)(english|en)\W/i.exec(entry.Name);
     });
     if (!enSubtitleFile) {
-      logWithTimestamp(`No subtitles ${remoteDir.Path}`);
+      logWithTimestamp(`No subtitles for ${remoteDir.Path}`);
       return;
     }
   }
