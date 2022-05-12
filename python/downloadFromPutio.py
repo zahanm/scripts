@@ -5,7 +5,8 @@
 
 import json
 import subprocess
-import os.path as path
+import os.path as ospath
+import readline  # needed for input() to give more keyboard control
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -25,9 +26,9 @@ def check_rclone_installed():
     subprocess.run(["which", "rclone"], check=True, stdout=subprocess.DEVNULL)
 
 
-def list_items(ls_path):
+def list_items(path):
     proc = subprocess.run(
-        ["rclone", "lsjson", f"{putio_rclone_mount}:{ls_path}"],
+        ["rclone", "lsjson", f"{putio_rclone_mount}:{path}"],
         check=True,
         capture_output=True,
         text=True,
@@ -50,15 +51,26 @@ def process_item(item):
         else:
             video = videos[0]
             offer_download(
-                item["Name"], path.join(item["Path"], video["Path"]), video["Size"]
+                item["Name"], ospath.join(item["Path"], video["Path"]), video["Size"]
             )
 
 
 def offer_download(name, path, size):
     answer = input(f"{human_readable_size(size)} | Download (y/n)?: ")
     if answer.lower() == "y":
-        print("will download")
-        pass  # TODO
+        movie_name = input(f"Movie name?: ")
+        assert len(movie_name) > 0
+        dest = ospath.join(media_root, "Movies", movie_name)
+        subprocess.run(
+            [
+                "rclone",
+                "copy",
+                "--progress",
+                f"{putio_rclone_mount}:{path}",
+                f"{dest}",
+            ],
+            check=True,
+        )
 
 
 def is_video_mimetype(mtype: str):
