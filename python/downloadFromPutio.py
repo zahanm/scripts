@@ -3,6 +3,10 @@
 # ask for movie name
 # rclone copy it into place
 
+# TODO
+# subtitles
+# TV shows
+
 import json
 import subprocess
 import os.path as ospath
