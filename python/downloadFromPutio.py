@@ -61,7 +61,7 @@ class Downloader:
         print()
         print(item["Name"])
         if not item["IsDir"] and is_video_mimetype(item["MimeType"]):
-            self.offer_download(item["Name"], item["Path"], item["Size"])
+            self.offer_actions(item["Name"], item["Path"], item["Size"])
         else:
             subitems = self.list_items(item["Path"])
             videos = [it for it in subitems if is_video_mimetype(it["MimeType"])]
@@ -71,15 +71,17 @@ class Downloader:
                 print("No video!")
             else:
                 video = videos[0]
-                self.offer_download(
+                self.offer_actions(
                     item["Name"],
                     ospath.join(item["Path"], video["Path"]),
                     video["Size"],
                 )
 
-    def offer_download(self, name, path, size):
-        answer = input(f"{human_readable_size(size)} | Download (y/n)?: ")
-        if answer.lower() == "y":
+    def offer_actions(self, name, path, size):
+        answer = input(
+            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s): "
+        )
+        if answer.lower() == "d":
             movie_name = input(f"Movie name?: ")
             assert len(movie_name) > 0
             dest = ospath.join(media_root, "Movies", movie_name)
@@ -94,6 +96,8 @@ class Downloader:
                 print("(dry-run)", " ".join(call_args))
             else:
                 subprocess.run(call_args, check=True)
+        elif answer.lower() == "x":
+            print("Delete isn't implemented yet")
 
 
 def is_video_mimetype(mtype: str):
