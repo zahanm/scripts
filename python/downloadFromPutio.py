@@ -73,9 +73,8 @@ class Downloader:
         return json.loads(proc.stdout)
 
     def list_items_in(self, prefix):
-        return [
-            ii for ii in self.all_items if PurePath(ii["Path"]).is_relative_to(prefix)
-        ]
+        # PurePath(ii["Path"]).is_relative_to(prefix) only works on Py >= 3.9
+        return [ii for ii in self.all_items if ii["Path"].startswith(prefix)]
 
     def process_item(self, item):
         print()
@@ -87,6 +86,7 @@ class Downloader:
         else:
             # It's a directory, need to peek inside to see what's up.
             subitems = self.list_items_in(item["Path"])
+            print(f"Sub-items found: {len(subitems)}")
             videos = [it for it in subitems if is_video_mimetype(it["MimeType"])]
             if len(videos) == 0:
                 print("Skip -- No video!")
@@ -123,7 +123,10 @@ class Downloader:
 
     def exec_actions(self):
         print()
-        print("Taking actions")
+        if len(self.actions) == 0:
+            print("Nothing to do!")
+            return
+        print("Taking actions...")
         for ii, action in enumerate(self.actions):
             if isinstance(action, DownloadAction):
                 print(
