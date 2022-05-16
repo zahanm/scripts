@@ -90,7 +90,7 @@ class Downloader:
             subitems = self.list_items_in(item["Path"])
             videos = [it for it in subitems if is_video_mimetype(it["MimeType"])]
             if len(videos) == 0:
-                print("No video!")
+                print("Skip -- No video!")
             elif len(videos) == 1:
                 # Just a single video file in here, must be a movie.
                 video = videos[0]
@@ -101,7 +101,7 @@ class Downloader:
                 )
             else:
                 # Multiple video files in here, must be a TV show.
-                print("Mutiple videos!")
+                print("Skip -- Mutiple videos!")
 
     def offer_actions(self, name, path, size):
         answer = input(
