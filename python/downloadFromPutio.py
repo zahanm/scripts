@@ -47,22 +47,24 @@ class Downloader:
         self.argv = argv
 
     def run(self):
-        items = self.list_items("")
-        print(f"Found {len(items)} items")
-        root_items = [item for item in items if len(PurePath(item["Path"]).parts) <= 1]
+        self.all_items = self.rclone_list_hierarchy()
+        print(f"Found {len(self.all_items)} items")
+        root_items = [
+            ii for ii in self.all_items if len(PurePath(ii["Path"]).parts) <= 1
+        ]
         print(f"Found {len(root_items)} root items")
         for item in root_items:
             if item["Path"] not in blocklist:
                 self.process_item(item)
 
-    def list_items(self, path):
+    def rclone_list_hierarchy(self):
         proc = subprocess.run(
             [
                 "rclone",
                 "lsjson",
                 "--max-depth",
                 str(ls_max_depth),
-                f"{putio_rclone_mount}:{path}",
+                f"{putio_rclone_mount}:",
             ],
             check=True,
             capture_output=True,
@@ -70,25 +72,35 @@ class Downloader:
         )
         return json.loads(proc.stdout)
 
+    def list_items_in(self, prefix):
+        return [
+            ii for ii in self.all_items if PurePath(ii["Path"]).is_relative_to(prefix)
+        ]
+
     def process_item(self, item):
         print()
         print(item["Name"])
-        if not item["IsDir"] and is_video_mimetype(item["MimeType"]):
-            self.offer_actions(item["Name"], item["Path"], item["Size"])
+        if not item["IsDir"]:
+            if is_video_mimetype(item["MimeType"]):
+                # It's just a video file in root directory. Offer actions on it.
+                self.offer_actions(item["Name"], item["Path"], item["Size"])
         else:
-            subitems = self.list_items(item["Path"])
+            # It's a directory, need to peek inside to see what's up.
+            subitems = self.list_items_in(item["Path"])
             videos = [it for it in subitems if is_video_mimetype(it["MimeType"])]
-            if len(videos) > 1:
-                print("Mutiple videos!")
-            elif len(videos) == 0:
+            if len(videos) == 0:
                 print("No video!")
-            else:
+            elif len(videos) == 1:
+                # Just a single video file in here, must be a movie.
                 video = videos[0]
                 self.offer_actions(
                     item["Name"],
                     ospath.join(item["Path"], video["Path"]),
                     video["Size"],
                 )
+            else:
+                # Multiple video files in here, must be a TV show.
+                print("Mutiple videos!")
 
     def offer_actions(self, name, path, size):
         answer = input(
