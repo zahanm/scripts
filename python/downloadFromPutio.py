@@ -66,13 +66,7 @@ class Downloader:
 
     def rclone_list_hierarchy(self):
         proc = subprocess.run(
-            [
-                "rclone",
-                "lsjson",
-                "--max-depth",
-                str(ls_max_depth),
-                f"{putio_rclone_mount}:",
-            ],
+            rclone_ls_args(),
             check=True,
             capture_output=True,
             text=True,
@@ -131,22 +125,49 @@ class Downloader:
     def exec_actions(self):
         print()
         print("Taking actions")
-        # TODO confirm the actions that are going to be taken and offer one last chance to bail out
-        for action in self.actions:
+        for ii, action in enumerate(self.actions):
             if isinstance(action, DownloadAction):
-                call_args = [
-                    "rclone",
-                    "copy",
-                    "--progress",
-                    action.source,
-                    action.dest,
-                ]
+                print(
+                    f"{ii+1}.",
+                    " ".join(rclone_download_args(action.source, action.dest)),
+                )
+            elif isinstance(action, DeleteAction):
+                print(f"{ii+1}.", f"Delete {action.path}")
+        print()
+        answer = input("Continue? (y/n): ")
+        if answer.lower() != "y":
+            return
+        for action in self.actions:
+            print()
+            if isinstance(action, DownloadAction):
                 if self.argv.dry_run:
-                    print("(dry-run)", " ".join(call_args))
+                    print("(dry run)")
                 else:
-                    subprocess.run(call_args, check=True)
+                    subprocess.run(
+                        rclone_download_args(action.source, action.dest), check=True
+                    )
             elif isinstance(action, DeleteAction):
                 print(f"Delete {action.path} -- not implemented yet")
+
+
+def rclone_ls_args():
+    return [
+        "rclone",
+        "lsjson",
+        "--max-depth",
+        str(ls_max_depth),
+        f"{putio_rclone_mount}:",
+    ]
+
+
+def rclone_download_args(source, dest):
+    return [
+        "rclone",
+        "copy",
+        "--progress",
+        source,
+        dest,
+    ]
 
 
 def is_video_mimetype(mtype: str):
