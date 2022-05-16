@@ -1,18 +1,21 @@
+# pyright: basic
+
 # list out folders on put.io root (take which folder to inspect as an argument)
 # for each folder, offer to download
 # ask for movie name
 # rclone copy it into place
 
 # TODO
-# subtitles
+# type "argv" and "item"
 # TV shows
+# subtitles
 
 import json
 import subprocess
 import readline  # needed for input() to give more keyboard control
 import argparse
 from pathlib import PurePath
-from typing import NamedTuple
+from typing import List, NamedTuple, Union
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -42,7 +45,21 @@ def check_rclone_installed():
     subprocess.run(["which", "rclone"], check=True, stdout=subprocess.DEVNULL)
 
 
+class DownloadAction(NamedTuple):
+    source: str
+    dest: str
+
+
+class DeleteAction(NamedTuple):
+    path: str
+
+
+Action = Union[DownloadAction, DeleteAction]
+
+
 class Downloader:
+    actions: List[Action]
+
     def __init__(self, argv) -> None:
         self.argv = argv
         self.actions = []
@@ -68,7 +85,7 @@ class Downloader:
         )
         return json.loads(proc.stdout)
 
-    def list_items_in(self, prefix):
+    def list_items_in(self, prefix: str):
         # PurePath(ii["Path"]).is_relative_to(prefix) only works on Py >= 3.9
         return [ii for ii in self.all_items if ii["Path"].startswith(prefix)]
 
@@ -114,7 +131,7 @@ class Downloader:
         elif answer.lower() == "x":
             self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item_path}"))
 
-    def enqueue_action(self, action):
+    def enqueue_action(self, action: Action):
         self.actions.append(action)
 
     def exec_actions(self):
@@ -149,15 +166,6 @@ class Downloader:
                 )
 
 
-class DownloadAction(NamedTuple):
-    source: str
-    dest: str
-
-
-class DeleteAction(NamedTuple):
-    path: str
-
-
 def rclone_ls_args():
     return [
         "rclone",
@@ -168,7 +176,7 @@ def rclone_ls_args():
     ]
 
 
-def rclone_download_args(source, dest):
+def rclone_download_args(source: str, dest: str):
     return [
         "rclone",
         "copy",
@@ -178,7 +186,7 @@ def rclone_download_args(source, dest):
     ]
 
 
-def rclone_delete_args(path):
+def rclone_delete_args(path: str):
     return [
         "rclone",
         "purge",
@@ -190,7 +198,7 @@ def is_video_mimetype(mtype: str):
     return mtype.startswith("video/")
 
 
-def human_readable_size(size, decimal_places=2):
+def human_readable_size(size: float, decimal_places: int = 2):
     """
     Ref https://stackoverflow.com/questions/1094841/get-human-readable-version-of-file-size
     """
@@ -198,7 +206,9 @@ def human_readable_size(size, decimal_places=2):
         if size < 1024.0 or unit == "PiB":
             break
         size /= 1024.0
-    return f"{size:.{decimal_places}f} {unit}"
+    return (
+        f"{size:.{decimal_places}f} {unit}"  # pyright: ignore [reportUnboundVariable]
+    )
 
 
 if __name__ == "__main__":
