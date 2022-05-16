@@ -9,7 +9,6 @@
 
 import json
 import subprocess
-import os.path as ospath
 import readline  # needed for input() to give more keyboard control
 import argparse
 from pathlib import PurePath
@@ -84,7 +83,7 @@ class Downloader:
         if not item["IsDir"]:
             if is_video_mimetype(item["MimeType"]):
                 # It's just a video file in root directory. Offer actions on it.
-                self.offer_actions(item["Name"], item["Path"], item["Size"])
+                self.offer_actions(item["Path"], item["Path"], item["Size"])
         else:
             # It's a directory, need to peek inside to see what's up.
             subitems = self.list_items_in(item["Path"])
@@ -95,28 +94,29 @@ class Downloader:
                 # Just a single video file in here, must be a movie.
                 video = videos[0]
                 self.offer_actions(
-                    item["Name"],
-                    ospath.join(item["Path"], video["Path"]),
+                    item["Path"],
+                    video["Path"],
                     video["Size"],
                 )
             else:
                 # Multiple video files in here, must be a TV show.
                 print("Skip -- Mutiple videos!")
 
-    def offer_actions(self, name, path, size):
+    def offer_actions(self, item_path: str, video_path: str, size: int):
         answer = input(
             f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s): "
         )
         if answer.lower() == "d":
-            movie_name = input(f"Movie name?: ")
+            movie_name = input(f"Media name?: ")
             assert len(movie_name) > 0
-            dest = ospath.join(media_root, "Movies", movie_name)
+            dest = PurePath(media_root) / "Movies" / movie_name
             self.enqueue_action(
-                DownloadAction(source=f"{putio_rclone_mount}:{path}", dest=f"{dest}")
+                DownloadAction(
+                    source=f"{putio_rclone_mount}:{video_path}", dest=f"{dest}"
+                )
             )
         elif answer.lower() == "x":
-            # TODO this doesn't work, since it's just the video file being deleted, not the directory
-            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{path}"))
+            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item_path}"))
             print("Delete isn't implemented yet")
 
     def enqueue_action(self, action):
