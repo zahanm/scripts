@@ -13,6 +13,7 @@ import os.path as ospath
 import readline  # needed for input() to give more keyboard control
 import argparse
 from pathlib import PurePath
+from collections import namedtuple
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -42,9 +43,14 @@ def check_rclone_installed():
     subprocess.run(["which", "rclone"], check=True, stdout=subprocess.DEVNULL)
 
 
+DownloadAction = namedtuple("DownloadAction", ["source", "dest"])
+DeleteAction = namedtuple("DeleteAction", ["path"])
+
+
 class Downloader:
     def __init__(self, argv) -> None:
         self.argv = argv
+        self.actions = []
 
     def run(self):
         self.all_items = self.rclone_list_hierarchy()
@@ -56,6 +62,7 @@ class Downloader:
         for item in root_items:
             if item["Path"] not in blocklist:
                 self.process_item(item)
+        self.exec_actions()
 
     def rclone_list_hierarchy(self):
         proc = subprocess.run(
@@ -110,19 +117,36 @@ class Downloader:
             movie_name = input(f"Movie name?: ")
             assert len(movie_name) > 0
             dest = ospath.join(media_root, "Movies", movie_name)
-            call_args = [
-                "rclone",
-                "copy",
-                "--progress",
-                f"{putio_rclone_mount}:{path}",
-                f"{dest}",
-            ]
-            if self.argv.dry_run:
-                print("(dry-run)", " ".join(call_args))
-            else:
-                subprocess.run(call_args, check=True)
+            self.enqueue_action(
+                DownloadAction(source=f"{putio_rclone_mount}:{path}", dest=f"{dest}")
+            )
         elif answer.lower() == "x":
+            # TODO this doesn't work, since it's just the video file being deleted, not the directory
+            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{path}"))
             print("Delete isn't implemented yet")
+
+    def enqueue_action(self, action):
+        self.actions.append(action)
+
+    def exec_actions(self):
+        print()
+        print("Taking actions")
+        # TODO confirm the actions that are going to be taken and offer one last chance to bail out
+        for action in self.actions:
+            if isinstance(action, DownloadAction):
+                call_args = [
+                    "rclone",
+                    "copy",
+                    "--progress",
+                    action.source,
+                    action.dest,
+                ]
+                if self.argv.dry_run:
+                    print("(dry-run)", " ".join(call_args))
+                else:
+                    subprocess.run(call_args, check=True)
+            elif isinstance(action, DeleteAction):
+                print(f"Delete {action.path} -- not implemented yet")
 
 
 def is_video_mimetype(mtype: str):
