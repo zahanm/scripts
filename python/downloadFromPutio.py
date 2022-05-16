@@ -117,7 +117,6 @@ class Downloader:
             )
         elif answer.lower() == "x":
             self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item_path}"))
-            print("Delete isn't implemented yet")
 
     def enqueue_action(self, action):
         self.actions.append(action)
@@ -132,22 +131,23 @@ class Downloader:
                     " ".join(rclone_download_args(action.source, action.dest)),
                 )
             elif isinstance(action, DeleteAction):
-                print(f"{ii+1}.", f"Delete {action.path}")
+                print(f"{ii+1}.", " ".join(rclone_delete_args(action.path)))
         print()
         answer = input("Continue? (y/n): ")
         if answer.lower() != "y":
             return
+        dry_run_args = ["--dry-run"] if self.argv.dry_run else []
         for action in self.actions:
             print()
             if isinstance(action, DownloadAction):
-                if self.argv.dry_run:
-                    print("(dry run)")
-                else:
-                    subprocess.run(
-                        rclone_download_args(action.source, action.dest), check=True
-                    )
+                subprocess.run(
+                    rclone_download_args(action.source, action.dest) + dry_run_args,
+                    check=True,
+                )
             elif isinstance(action, DeleteAction):
-                print(f"Delete {action.path} -- not implemented yet")
+                subprocess.run(
+                    rclone_delete_args(action.path) + dry_run_args, check=True
+                )
 
 
 def rclone_ls_args():
@@ -167,6 +167,14 @@ def rclone_download_args(source, dest):
         "--progress",
         source,
         dest,
+    ]
+
+
+def rclone_delete_args(path):
+    return [
+        "rclone",
+        "purge",
+        path,
     ]
 
 
