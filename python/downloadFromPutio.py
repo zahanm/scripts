@@ -12,7 +12,7 @@ import subprocess
 import readline  # needed for input() to give more keyboard control
 import argparse
 from pathlib import PurePath
-from collections import namedtuple
+from typing import NamedTuple
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -40,10 +40,6 @@ def parse_args():
 
 def check_rclone_installed():
     subprocess.run(["which", "rclone"], check=True, stdout=subprocess.DEVNULL)
-
-
-DownloadAction = namedtuple("DownloadAction", ["source", "dest"])
-DeleteAction = namedtuple("DeleteAction", ["path"])
 
 
 class Downloader:
@@ -151,6 +147,15 @@ class Downloader:
                 subprocess.run(
                     rclone_delete_args(action.path) + dry_run_args, check=True
                 )
+
+
+class DownloadAction(NamedTuple):
+    source: str
+    dest: str
+
+
+class DeleteAction(NamedTuple):
+    path: str
 
 
 def rclone_ls_args():
