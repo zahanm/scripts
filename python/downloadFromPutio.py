@@ -12,21 +12,19 @@ import subprocess
 import os.path as ospath
 import readline  # needed for input() to give more keyboard control
 import argparse
+from pathlib import PurePath
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
 media_root = "/volume1/media"
+ls_max_depth = 5
 
 
 def run():
     argv = parse_args()
     check_rclone_installed()
     runner = Downloader(argv)
-    items = runner.list_items("")
-    print(f"Found {len(items)} items")
-    for item in items:
-        if item["Name"] not in blocklist:
-            runner.process_item(item)
+    runner.run()
 
 
 def parse_args():
@@ -48,9 +46,24 @@ class Downloader:
     def __init__(self, argv) -> None:
         self.argv = argv
 
+    def run(self):
+        items = self.list_items("")
+        print(f"Found {len(items)} items")
+        root_items = [item for item in items if len(PurePath(item["Path"]).parts) <= 1]
+        print(f"Found {len(root_items)} root items")
+        for item in root_items:
+            if item["Path"] not in blocklist:
+                self.process_item(item)
+
     def list_items(self, path):
         proc = subprocess.run(
-            ["rclone", "lsjson", f"{putio_rclone_mount}:{path}"],
+            [
+                "rclone",
+                "lsjson",
+                "--max-depth",
+                str(ls_max_depth),
+                f"{putio_rclone_mount}:{path}",
+            ],
             check=True,
             capture_output=True,
             text=True,
