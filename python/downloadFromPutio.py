@@ -210,14 +210,19 @@ class Downloader:
         if answer.lower() != "y":
             return
         dry_run_args = ["--dry-run"] if self.argv.dry_run else []
-        for action in self.actions:
+        for ii, action in enumerate(self.actions):
             print()
             if isinstance(action, DownloadAction):
+                print(
+                    f"{ii+1}.",
+                    " ".join(rclone_download_args(action.source, action.dest)),
+                )
                 subprocess.run(
                     rclone_download_args(action.source, action.dest) + dry_run_args,
                     check=True,
                 )
             else:
+                print(f"{ii+1}.", " ".join(rclone_delete_args(action.path)))
                 subprocess.run(
                     rclone_delete_args(action.path) + dry_run_args, check=True
                 )
