@@ -1,4 +1,4 @@
-# pyright: basic
+# pyright: strict
 
 # list out folders on put.io root (take which folder to inspect as an argument)
 # for each folder, offer to download
@@ -12,10 +12,10 @@
 
 import json
 import subprocess
-import readline  # needed for input() to give more keyboard control
+import readline  # pyright: ignore [reportUnusedImport] -- needed for input() to give more keyboard control
 import argparse
 from pathlib import PurePath
-from typing import List, NamedTuple, Union
+from typing import List, NamedTuple, Optional, Union
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -57,59 +57,67 @@ class DeleteAction(NamedTuple):
 Action = Union[DownloadAction, DeleteAction]
 
 
+class Item(NamedTuple):
+    Path: str
+    Name: str
+    Size: int
+    MimeType: str
+    IsDir: bool
+    ModTime: str
+    ID: Optional[str] = None
+
+
 class Downloader:
     actions: List[Action]
 
-    def __init__(self, argv) -> None:
+    def __init__(self, argv: argparse.Namespace) -> None:
         self.argv = argv
         self.actions = []
 
     def run(self):
         self.all_items = self.rclone_list_hierarchy()
         print(f"Found {len(self.all_items)} items")
-        root_items = [
-            ii for ii in self.all_items if len(PurePath(ii["Path"]).parts) <= 1
-        ]
+        root_items = [ii for ii in self.all_items if len(PurePath(ii.Path).parts) <= 1]
         print(f"Found {len(root_items)} root items")
         for item in root_items:
-            if item["Path"] not in blocklist:
+            if item.Path not in blocklist:
                 self.process_item(item)
         self.exec_actions()
 
-    def rclone_list_hierarchy(self):
+    def rclone_list_hierarchy(self) -> List[Item]:
         proc = subprocess.run(
             rclone_ls_args(),
             check=True,
             capture_output=True,
             text=True,
         )
-        return json.loads(proc.stdout)
+        return [Item(**ii) for ii in json.loads(proc.stdout)]
 
     def list_items_in(self, prefix: str):
         # PurePath(ii["Path"]).is_relative_to(prefix) only works on Py >= 3.9
-        return [ii for ii in self.all_items if ii["Path"].startswith(prefix)]
+        return [ii for ii in self.all_items if ii.Path.startswith(prefix)]
 
-    def process_item(self, item):
+    def process_item(self, item: Item):
         print()
-        print(item["Name"])
-        if not item["IsDir"]:
-            if is_video_mimetype(item["MimeType"]):
+        print(item.Name)
+        if not item.IsDir:
+            if is_video_mimetype(item.MimeType):
                 # It's just a video file in root directory. Offer actions on it.
-                self.offer_actions(item["Path"], item["Path"], item["Size"])
+                self.offer_actions(item.Path, item.Path, item.Size)
         else:
             # It's a directory, need to peek inside to see what's up.
-            subitems = self.list_items_in(item["Path"])
+            subitems = self.list_items_in(item.Path)
             print(f"Sub-items found: {len(subitems)}")
-            videos = [it for it in subitems if is_video_mimetype(it["MimeType"])]
+            videos = [it for it in subitems if is_video_mimetype(it.MimeType)]
             if len(videos) == 0:
                 print("Skip -- No video!")
             elif len(videos) == 1:
                 # Just a single video file in here, must be a movie.
                 video = videos[0]
                 self.offer_actions(
-                    item["Path"],
-                    video["Path"],
-                    video["Size"],
+                    item.Path,
+                    video.Path,
+                    video.Size,
                 )
             else:
                 # Multiple video files in here, must be a TV show.
@@ -146,7 +154,7 @@ class Downloader:
                     f"{ii+1}.",
                     " ".join(rclone_download_args(action.source, action.dest)),
                 )
-            elif isinstance(action, DeleteAction):
+            else:
                 print(f"{ii+1}.", " ".join(rclone_delete_args(action.path)))
         print()
         answer = input("Continue? (y/n): ")
@@ -160,7 +168,7 @@ class Downloader:
                     rclone_download_args(action.source, action.dest) + dry_run_args,
                     check=True,
                 )
-            elif isinstance(action, DeleteAction):
+            else:
                 subprocess.run(
                     rclone_delete_args(action.path) + dry_run_args, check=True
                 )
