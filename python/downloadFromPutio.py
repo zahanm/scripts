@@ -5,11 +5,6 @@
 # ask for movie name
 # rclone copy it into place
 
-# TODO
-# type "argv" and "item"
-# TV shows
-# subtitles
-
 import json
 import subprocess
 import readline  # pyright: ignore [reportUnusedImport] -- needed for input() to give more keyboard control
@@ -99,45 +94,99 @@ class Downloader:
 
     def process_item(self, item: Item):
         print()
-        print(item.Name)
         if not item.IsDir:
-            if is_video_mimetype(item.MimeType):
-                # It's just a video file in root directory. Offer actions on it.
-                self.offer_actions(item.Path, item.Path, item.Size)
+            if is_video(item):
+                # It's just a video file in root directory.
+                self.process_movie_item(item, item)
         else:
             # It's a directory, need to peek inside to see what's up.
             subitems = self.list_items_in(item.Path)
-            print(f"Sub-items found: {len(subitems)}")
-            videos = [it for it in subitems if is_video_mimetype(it.MimeType)]
+            videos = [it for it in subitems if is_video(it)]
             if len(videos) == 0:
-                print("Skip -- No video!")
+                print(f"Skip {item.Name} -- no video!")
             elif len(videos) == 1:
                 # Just a single video file in here, must be a movie.
                 video = videos[0]
-                self.offer_actions(
-                    item.Path,
-                    video.Path,
-                    video.Size,
-                )
+                self.process_movie_item(item, video)
             else:
                 # Multiple video files in here, must be a TV show.
-                print("Skip -- Mutiple videos!")
+                self.process_tv_item(item, subitems)
 
-    def offer_actions(self, item_path: str, video_path: str, size: int):
-        answer = input(
-            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s): "
-        )
+    def process_movie_item(self, item: Item, video: Item):
+        answer = self.offer_actions(item.Name, video.Size)
         if answer.lower() == "d":
-            movie_name = input(f"Media name?: ")
-            assert len(movie_name) > 0
+            movie_name = self.ask_movie_name()
             dest = PurePath(media_root) / "Movies" / movie_name
             self.enqueue_action(
                 DownloadAction(
-                    source=f"{putio_rclone_mount}:{video_path}", dest=f"{dest}"
+                    source=f"{putio_rclone_mount}:{video.Path}", dest=f"{dest}"
                 )
             )
         elif answer.lower() == "x":
-            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item_path}"))
+            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item.Path}"))
+
+    def ask_movie_name(self) -> str:
+        movie_name = input(f"Movie name?: ")
+        assert len(movie_name) > 0
+        return movie_name
+
+    def process_tv_item(self, item: Item, subitems: List[Item]):
+        print(item.Name)
+        print(f"Sub-items found: {len(subitems)}")
+        top_level_items = [it for it in subitems if len(PurePath(it.Path).parts) == 2]
+        tv_show_name: Optional[str] = None
+        for tlitem in top_level_items:
+            answer = "s"
+            if is_video(tlitem):
+                # if it's a singular video file top-level item
+                answer = self.offer_actions(tlitem.Name, tlitem.Size)
+                if answer.lower() == "d":
+                    # download this video
+                    tv_show_name = self.maybe_ask_show_name(tv_show_name)
+                    dest = PurePath(media_root) / "TV Shows" / tv_show_name
+                    self.enqueue_action(
+                        DownloadAction(
+                            source=f"{putio_rclone_mount}:{tlitem.Path}", dest=f"{dest}"
+                        )
+                    )
+            elif tlitem.IsDir:
+                # look for video files within this top-level folder
+                nested_videos = [
+                    it for it in self.list_items_in(tlitem.Path) if is_video(it)
+                ]
+                if len(nested_videos) > 0:
+                    answer = self.offer_actions(
+                        tlitem.Name, sum([it.Size for it in nested_videos])
+                    )
+                    if answer.lower() == "d":
+                        # download all videos within this folder
+                        tv_show_name = self.maybe_ask_show_name(tv_show_name)
+                        dest = PurePath(media_root) / "TV Shows" / tv_show_name
+                        for it in nested_videos:
+                            self.enqueue_action(
+                                DownloadAction(
+                                    source=f"{putio_rclone_mount}:{it.Path}",
+                                    dest=f"{dest}",
+                                )
+                            )
+            if answer == "x":
+                # check if the choice was to delete
+                self.enqueue_action(
+                    DeleteAction(path=f"{putio_rclone_mount}:{tlitem.Path}")
+                )
+
+    def maybe_ask_show_name(self, name: Optional[str]) -> str:
+        if name == None:
+            name = input(f"TV show name?: ")
+            assert len(name) > 0
+        return name
+
+    def offer_actions(self, name: str, size: int) -> str:
+        print(name)
+        answer = input(
+            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s): "
+        )
+        return answer
 
     def enqueue_action(self, action: Action):
         self.actions.append(action)
@@ -202,8 +251,12 @@ def rclone_delete_args(path: str):
     ]
 
 
-def is_video_mimetype(mtype: str):
-    return mtype.startswith("video/")
+def is_video(it: Item):
+    return it.MimeType.startswith("video/")
+
+
+def is_subtitles(it: Item) -> bool:
+    return it.Name.endswith(".srt") and it.MimeType.startswith("text/")
 
 
 def human_readable_size(size: float, decimal_places: int = 2):
