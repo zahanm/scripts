@@ -214,7 +214,7 @@ class Downloader:
             print()
             if isinstance(action, DownloadAction):
                 print(
-                    f"{ii+1}.",
+                    f"{ii+1}/{len(self.actions)}.",
                     " ".join(rclone_download_args(action.source, action.dest)),
                 )
                 subprocess.run(
@@ -222,7 +222,10 @@ class Downloader:
                     check=True,
                 )
             else:
-                print(f"{ii+1}.", " ".join(rclone_delete_args(action.path)))
+                print(
+                    f"{ii+1}/{len(self.actions)}.",
+                    " ".join(rclone_delete_args(action.path)),
+                )
                 subprocess.run(
                     rclone_delete_args(action.path) + dry_run_args, check=True
                 )
