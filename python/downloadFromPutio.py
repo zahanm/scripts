@@ -112,6 +112,13 @@ class Downloader:
                 # Multiple video files in here, must be a TV show.
                 self.process_tv_item(item, subitems)
 
+    def offer_actions(self, name: str, size: int) -> str:
+        print(name)
+        answer = input(
+            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s), Subtitles (z): "
+        )
+        return answer
+
     def process_movie_item(self, item: Item, video: Item):
         answer = self.offer_actions(item.Name, video.Size)
         if answer.lower() == "d":
@@ -122,13 +129,50 @@ class Downloader:
                     source=f"{putio_rclone_mount}:{video.Path}", dest=f"{dest}"
                 )
             )
+            self.maybe_dl_subs(item, dest)
         elif answer.lower() == "x":
             self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item.Path}"))
+        elif answer.lower() == "z":
+            movie_name = self.ask_movie_name()
+            dest = PurePath(media_root) / "Movies" / movie_name
+            self.maybe_dl_subs(item, dest)
 
     def ask_movie_name(self) -> str:
         movie_name = input(f"Movie name?: ")
         assert len(movie_name) > 0
         return movie_name
+
+    def maybe_dl_subs(self, item: Item, dest: PurePath):
+        if not item.IsDir:
+            print("No subtitles")
+            return
+        subitems = self.list_items_in(item.Path)
+        subs = [it for it in subitems if is_subtitles(it)]
+        if len(subs) == 0:
+            print("No subtitles")
+            return
+        print("Subtitles:")
+        if len(subs) == 1:
+            sub = subs[0]
+            answer = input(f"{sub.Name} | Download? (y/n): ")
+            if answer.lower() == "y":
+                self.enqueue_action(
+                    DownloadAction(
+                        source=f"{putio_rclone_mount}:{sub.Path}", dest=f"{dest}"
+                    )
+                )
+        else:
+            # more than 1 subtitles file
+            for ii, sub in enumerate(subs):
+                print(f"{ii+1}. {sub.Name}")
+            answer = input(f"Pick one (number), or skip (s): ")
+            if answer.isdigit() and int(answer) <= len(subs):
+                sub = subs[int(answer) - 1]
+                self.enqueue_action(
+                    DownloadAction(
+                        source=f"{putio_rclone_mount}:{sub.Path}", dest=f"{dest}"
+                    )
+                )
 
     def process_tv_item(self, item: Item, subitems: List[Item]):
         print(item.Name)
@@ -180,13 +224,6 @@ class Downloader:
             name = input(f"TV show name?: ")
             assert len(name) > 0
         return name
-
-    def offer_actions(self, name: str, size: int) -> str:
-        print(name)
-        answer = input(
-            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s): "
-        )
-        return answer
 
     def enqueue_action(self, action: Action):
         self.actions.append(action)
