@@ -178,46 +178,64 @@ class Downloader:
         print(item.Name)
         print(f"Sub-items found: {len(subitems)}")
         top_level_items = [it for it in subitems if len(PurePath(it.Path).parts) == 2]
+        videos = [it for it in subitems if is_video(it)]
         tv_show_name: Optional[str] = None
-        for tlitem in top_level_items:
-            answer = "s"
-            if is_video(tlitem):
-                # if it's a singular video file top-level item
-                answer = self.offer_actions(tlitem.Name, tlitem.Size)
-                if answer.lower() == "d":
-                    # download this video
-                    tv_show_name = self.maybe_ask_show_name(tv_show_name)
-                    dest = PurePath(media_root) / "TV Shows" / tv_show_name
+        dirs_w_videos = list(filter(self.has_nested_videos, top_level_items))
+        if len(dirs_w_videos) == 0:
+            # if there are no sub-directories with videos, treat this as one unit to download
+            answer = self.offer_actions("Full folder", sum([it.Size for it in videos]))
+            if answer.lower() == "d":
+                # download all videos
+                tv_show_name = self.maybe_ask_show_name(tv_show_name)
+                dest = PurePath(media_root) / "TV Shows" / tv_show_name
+                for it in videos:
                     self.enqueue_action(
                         DownloadAction(
-                            source=f"{putio_rclone_mount}:{tlitem.Path}", dest=f"{dest}"
+                            source=f"{putio_rclone_mount}:{it.Path}",
+                            dest=f"{dest}",
                         )
                     )
-            elif tlitem.IsDir:
-                # look for video files within this top-level folder
-                nested_videos = [
-                    it for it in self.list_items_in(tlitem.Path) if is_video(it)
-                ]
-                if len(nested_videos) > 0:
-                    answer = self.offer_actions(
-                        tlitem.Name, sum([it.Size for it in nested_videos])
+            elif answer == "x":
+                # check if the choice was to delete
+                self.enqueue_action(
+                    DeleteAction(path=f"{putio_rclone_mount}:{item.Path}")
+                )
+            return
+        # otherwise, offer download for each sub-dir w videos
+        for tlitem in dirs_w_videos:
+            # look for video files within this top-level folder
+            nested_videos = [
+                it for it in self.list_items_in(tlitem.Path) if is_video(it)
+            ]
+            assert len(nested_videos) > 0  # since this is a sub-dir w videos
+            answer = self.offer_actions(
+                tlitem.Name, sum([it.Size for it in nested_videos])
+            )
+            if answer.lower() == "d":
+                # download all videos within this folder
+                tv_show_name = self.maybe_ask_show_name(tv_show_name)
+                dest = PurePath(media_root) / "TV Shows" / tv_show_name
+                for it in nested_videos:
+                    self.enqueue_action(
+                        DownloadAction(
+                            source=f"{putio_rclone_mount}:{it.Path}",
+                            dest=f"{dest}",
+                        )
                     )
-                    if answer.lower() == "d":
-                        # download all videos within this folder
-                        tv_show_name = self.maybe_ask_show_name(tv_show_name)
-                        dest = PurePath(media_root) / "TV Shows" / tv_show_name
-                        for it in nested_videos:
-                            self.enqueue_action(
-                                DownloadAction(
-                                    source=f"{putio_rclone_mount}:{it.Path}",
-                                    dest=f"{dest}",
-                                )
-                            )
-            if answer == "x":
+            elif answer == "x":
                 # check if the choice was to delete
                 self.enqueue_action(
                     DeleteAction(path=f"{putio_rclone_mount}:{tlitem.Path}")
                 )
+
+    def has_nested_videos(self, item: Item) -> bool:
+        """
+        Used to filter to a list of items that contain nested videos in them
+        """
+        return (
+            item.IsDir
+            and len([it for it in self.list_items_in(item.Path) if is_video(it)]) > 0
+        )
 
     def maybe_ask_show_name(self, name: Optional[str]) -> str:
         if name == None:
