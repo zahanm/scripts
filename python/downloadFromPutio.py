@@ -115,13 +115,13 @@ class Downloader:
     def offer_actions(self, name: str, size: int) -> str:
         print(name)
         answer = input(
-            f"{human_readable_size(size)} | Action? Download (d), Delete (x), Skip (s), Subtitles (z): "
+            f"{human_readable_size(size)} | Action? Download (d) and/or Delete (x), Skip (s), Subtitles (z): "
         )
         return answer
 
     def process_movie_item(self, item: Item, video: Item):
         answer = self.offer_actions(item.Name, video.Size)
-        if answer.lower() == "d":
+        if "d" in answer.lower():
             movie_name = self.ask_movie_name()
             dest = PurePath(media_root) / "Movies" / movie_name
             self.enqueue_action(
@@ -130,7 +130,7 @@ class Downloader:
                 )
             )
             self.maybe_dl_subs(item, dest)
-        elif answer.lower() == "x":
+        if "x" in answer.lower():
             self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item.Path}"))
         elif answer.lower() == "z":
             movie_name = self.ask_movie_name()
@@ -184,7 +184,7 @@ class Downloader:
         if len(dirs_w_videos) == 0:
             # if there are no sub-directories with videos, treat this as one unit to download
             answer = self.offer_actions("Full folder", sum([it.Size for it in videos]))
-            if answer.lower() == "d":
+            if "d" in answer.lower():
                 # download all videos
                 tv_show_name = self.maybe_ask_show_name(tv_show_name)
                 dest = PurePath(media_root) / "TV Shows" / tv_show_name
@@ -195,7 +195,7 @@ class Downloader:
                             dest=f"{dest}",
                         )
                     )
-            elif answer == "x":
+            if "x" in answer:
                 # check if the choice was to delete
                 self.enqueue_action(
                     DeleteAction(path=f"{putio_rclone_mount}:{item.Path}")
@@ -211,7 +211,7 @@ class Downloader:
             answer = self.offer_actions(
                 tlitem.Name, sum([it.Size for it in nested_videos])
             )
-            if answer.lower() == "d":
+            if "d" in answer.lower():
                 # download all videos within this folder
                 tv_show_name = self.maybe_ask_show_name(tv_show_name)
                 dest = PurePath(media_root) / "TV Shows" / tv_show_name
@@ -222,7 +222,7 @@ class Downloader:
                             dest=f"{dest}",
                         )
                     )
-            elif answer == "x":
+            if "x" in answer:
                 # check if the choice was to delete
                 self.enqueue_action(
                     DeleteAction(path=f"{putio_rclone_mount}:{tlitem.Path}")
