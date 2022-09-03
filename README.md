@@ -21,3 +21,11 @@ And this goes in `crontab -e`
 ```
 @hourly /home/zahanm/source/scripts/bin/index.sh update-fava-server /home/zahanm/source/accounts/ >> /home/zahanm/log/fava-server/out.log 2>> /home/zahanm/log/fava-server/err.log
 ```
+
+## Pulling an updated script in on remote machine
+
+In the case of `downloadFromPutio.py`
+
+```sh
+curl --output scripts/downloadFromPutio.py https://raw.githubusercontent.com/zahanm/scripts/master/python/downloadFromPutio.py
+```
