@@ -11,6 +11,7 @@ import readline  # pyright: ignore [reportUnusedImport] -- needed for input() to
 import argparse
 from pathlib import PurePath
 from typing import List, NamedTuple, Optional, Union
+import os.path
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -124,11 +125,14 @@ class Downloader:
         if "d" in answer.lower():
             movie_name = self.ask_movie_name()
             dest = PurePath(media_root) / "Movies" / movie_name
-            self.enqueue_action(
-                DownloadAction(
-                    source=f"{putio_rclone_mount}:{video.Path}", dest=f"{dest}"
+            if os.path.exists(dest):
+                print("You already have '{}'! Skipping download...".format(movie_name))
+            else:
+                self.enqueue_action(
+                    DownloadAction(
+                        source=f"{putio_rclone_mount}:{video.Path}", dest=f"{dest}"
+                    )
                 )
-            )
             self.maybe_dl_subs(item, dest)
         if "x" in answer.lower():
             self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item.Path}"))
