@@ -12,6 +12,7 @@ import argparse
 from pathlib import PurePath
 from typing import List, NamedTuple, Optional, Union
 import os.path
+import re
 
 blocklist = {"chill.institute"}
 putio_rclone_mount = "putio"
@@ -98,7 +99,10 @@ class Downloader:
         if not item.IsDir:
             if is_video(item):
                 # It's just a video file in root directory.
-                self.process_movie_item(item, item)
+                if self.looks_like_tv_episode(item):
+                    self.process_tv_item(item, [item])
+                else:
+                    self.process_movie_item(item, item)
         else:
             # It's a directory, need to peek inside to see what's up.
             subitems = self.list_items_in(item.Path)
@@ -106,9 +110,12 @@ class Downloader:
             if len(videos) == 0:
                 print(f"Skip {item.Name} -- no video!")
             elif len(videos) == 1:
-                # Just a single video file in here, must be a movie.
-                video = videos[0]
-                self.process_movie_item(item, video)
+                # Just a single video file in here, check if it's a TV episode
+                if self.looks_like_tv_episode(item):
+                    self.process_tv_item(item, videos)
+                else:
+                    video = videos[0]
+                    self.process_movie_item(item, video)
             else:
                 # Multiple video files in here, must be a TV show.
                 self.process_tv_item(item, subitems)
@@ -177,6 +184,9 @@ class Downloader:
                         source=f"{putio_rclone_mount}:{sub.Path}", dest=f"{dest}"
                     )
                 )
+
+    def looks_like_tv_episode(self, item: Item) -> bool:
+        return bool(re.search(r"S\d+E\d+", item.Name, flags=re.IGNORECASE))
 
     def process_tv_item(self, item: Item, subitems: List[Item]):
         print(item.Name)
