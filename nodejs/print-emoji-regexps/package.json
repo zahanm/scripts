@@ -1,0 +1,18 @@
+{
+  "name": "print-emoji-regexps",
+  "description": "Prints emoji character regexps for various languages according to the TR51 unicode draft.",
+  "author": "Thomas Dimson <thomas@instagram.com>",
+  "version": "0.1.0",
+  "dependencies": {
+    "regenerate": "~1.2.0",
+    "regex-trie": "~1.0.0",
+    "request": "^2.78.0",
+    "string.fromcodepoint": "~0.2.0",
+    "underscore.string": "~3.0.3"
+  },
+  "component": {
+    "scripts": {
+      "print_emoji_regexps": "print_emoji_regexps.js"
+    }
+  }
+}
