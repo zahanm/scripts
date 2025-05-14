@@ -14,9 +14,9 @@ from typing import List, NamedTuple, Optional, Union
 import os.path
 import re
 
-blocklist = {"chill.institute"}
+blocklist = {"chill.institute", "Kids"}
 putio_rclone_mount = "putio"
-media_root = "/volume1/media"
+media_root = "/mnt/eros-media"
 ls_max_depth = 5
 
 
@@ -47,11 +47,14 @@ class DownloadAction(NamedTuple):
     dest: str
 
 
-class DeleteAction(NamedTuple):
+class PurgeAction(NamedTuple):
+    path: str
+
+class DeleteFileAction(NamedTuple):
     path: str
 
 
-Action = Union[DownloadAction, DeleteAction]
+Action = Union[DownloadAction, PurgeAction, DeleteFileAction]
 
 
 class Item(NamedTuple):
@@ -142,7 +145,8 @@ class Downloader:
                 )
             self.maybe_dl_subs(item, dest)
         if "x" in answer.lower():
-            self.enqueue_action(DeleteAction(path=f"{putio_rclone_mount}:{item.Path}"))
+            delete_action = PurgeAction if item.IsDir else DeleteFileAction
+            self.enqueue_action(delete_action(path=f"{putio_rclone_mount}:{item.Path}"))
         elif answer.lower() == "z":
             movie_name = self.ask_movie_name()
             dest = PurePath(media_root) / "Movies" / movie_name
@@ -211,8 +215,9 @@ class Downloader:
                     )
             if "x" in answer:
                 # check if the choice was to delete
+                delete_action = PurgeAction if item.IsDir else DeleteFileAction
                 self.enqueue_action(
-                    DeleteAction(path=f"{putio_rclone_mount}:{item.Path}")
+                    delete_action(path=f"{putio_rclone_mount}:{item.Path}")
                 )
             return
         # otherwise, offer download for each sub-dir w videos
@@ -238,8 +243,9 @@ class Downloader:
                     )
             if "x" in answer:
                 # check if the choice was to delete
+                delete_action = PurgeAction if tlitem.IsDir else DeleteFileAction
                 self.enqueue_action(
-                    DeleteAction(path=f"{putio_rclone_mount}:{tlitem.Path}")
+                    delete_action(path=f"{putio_rclone_mount}:{tlitem.Path}")
                 )
 
     def has_nested_videos(self, item: Item) -> bool:
@@ -272,8 +278,10 @@ class Downloader:
                     f"{ii+1}.",
                     " ".join(rclone_download_args(action.source, action.dest)),
                 )
-            else:
-                print(f"{ii+1}.", " ".join(rclone_delete_args(action.path)))
+            elif isinstance(action, PurgeAction):
+                print(f"{ii+1}.", " ".join(rclone_purge_args(action.path)))
+            else: # DeleteFileAction
+                print(f"{ii+1}.", " ".join(rclone_deletefile_args(action.path)))
         print()
         answer = input("Continue? (y/n): ")
         if answer.lower() != "y":
@@ -290,13 +298,21 @@ class Downloader:
                     rclone_download_args(action.source, action.dest) + dry_run_args,
                     check=True,
                 )
-            else:
+            elif isinstance(action, PurgeAction):
                 print(
                     f"{ii+1}/{len(self.actions)}.",
-                    " ".join(rclone_delete_args(action.path)),
+                    " ".join(rclone_purge_args(action.path)),
                 )
                 subprocess.run(
-                    rclone_delete_args(action.path) + dry_run_args, check=True
+                    rclone_purge_args(action.path) + dry_run_args, check=True
+                )
+            else: # DeleteFileAction
+                print(
+                    f"{ii+1}/{len(self.actions)}.",
+                    " ".join(rclone_deletefile_args(action.path)),
+                )
+                subprocess.run(
+                    rclone_deletefile_args(action.path) + dry_run_args, check=True
                 )
 
 
@@ -320,10 +336,17 @@ def rclone_download_args(source: str, dest: str):
     ]
 
 
-def rclone_delete_args(path: str):
+def rclone_purge_args(path: str):
     return [
         "rclone",
         "purge",
+        path,
+    ]
+
+def rclone_deletefile_args(path: str):
+    return [
+        "rclone",
+        "deletefile",
         path,
     ]
 
@@ -345,7 +368,7 @@ def human_readable_size(size: float, decimal_places: int = 2):
             break
         size /= 1024.0
     return (
-        f"{size:.{decimal_places}f} {unit}"  # pyright: ignore [reportUnboundVariable]
+        f"{size:.{decimal_places}f} {unit}"  # pyright: ignore [reportPossiblyUnboundVariable]
     )
 
 
