@@ -114,7 +114,7 @@ class Downloader:
                 print(f"Skip {item.Name} -- no video!")
             elif len(videos) == 1:
                 # Just a single video file in here, check if it's a TV episode
-                if self.looks_like_tv_episode(item):
+                if self.looks_like_tv_episode(videos[0]):
                     self.process_tv_item(item, videos)
                 else:
                     video = videos[0]
