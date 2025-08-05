@@ -14,7 +14,7 @@ from typing import List, NamedTuple, Optional, Union
 import os.path
 import re
 
-blocklist = {"chill.institute", "Kids"}
+blocklist = {"chill.institute", "Kids", "Share"}
 putio_rclone_mount = "putio"
 media_root = "/mnt/eros-media"
 ls_max_depth = 5
